@@ -1,5 +1,8 @@
 use crate::prelude::*;
 
+mod ts;
+pub use ts::*;
+
 const CONFIG_FILE: &str = "errconfig.toml";
 
 #[derive(Debug, Serialize, Deserialize)]
