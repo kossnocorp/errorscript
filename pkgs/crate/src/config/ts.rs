@@ -73,6 +73,18 @@ mod tests {
     }
 
     #[test]
+    fn resolve_path_from_dir() {
+        let project_dir = tempdir().unwrap();
+        let config_path = EscConfigTs::join_to(project_dir.path());
+        std::fs::write(&config_path, "{}").unwrap();
+
+        assert_eq!(
+            EscConfigTs::resolve_path(Some(&project_dir.path().to_path_buf())).unwrap(),
+            Some(config_path)
+        );
+    }
+
+    #[test]
     fn resolve_path_from_nested_dir() {
         let project_dir = tempdir().unwrap();
         let config_path = EscConfigTs::join_to(project_dir.path());
