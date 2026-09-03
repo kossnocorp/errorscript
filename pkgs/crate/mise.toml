@@ -5,3 +5,11 @@
 # publish ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [tasks.publish]
 run = "fnox exec -- cargo publish --allow-dirty"
+
+# Examples =====================================================================
+
+[tasks.example]
+usage = '''
+arg "<example>" help="Example name"
+'''
+run = "cargo run --bin esc -- build --project ./examples/{usage.example}/"

@@ -1,0 +1,8 @@
+{
+  "name": "@errorscript/example-basic",
+  "private": true,
+  "dependencies": {
+    "@errorscript/core": "workspace:*",
+    "@types/node": "^20"
+  }
+}

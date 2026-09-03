@@ -1,4 +1,6 @@
 packages:
   - "pkgs/*"
+  - "pkgs/*/examples/*"
+
 minimumReleaseAgeExclude:
-  - '@js-fns/dev@0.3.4 || 0.3.5'
+  - "@js-fns/dev@0.3.4 || 0.3.5"
