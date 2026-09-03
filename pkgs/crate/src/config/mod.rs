@@ -3,7 +3,9 @@ use crate::prelude::*;
 mod ts;
 pub use ts::*;
 
-const CONFIG_FILE: &str = "errconfig.toml";
+pub const CONFIG_FILE: &str = "errconfig.toml";
+const CONFIG_EXT: &str = "toml";
+const OTHER_CONFIG_FILE: &str = ts::CONFIG_FILE;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscConfig {
@@ -43,7 +45,14 @@ impl EscConfig {
             None => &cwd,
         };
 
-        let config_path = if initial_path.is_file() {
+        let config_path = if initial_path.is_file()
+            && initial_path
+                .extension()
+                .is_some_and(|extension| extension == CONFIG_EXT)
+            && initial_path
+                .file_name()
+                .is_some_and(|file_name| file_name != OTHER_CONFIG_FILE)
+        {
             Some(initial_path.clone())
         } else {
             initial_path
@@ -80,6 +89,20 @@ mod tests {
 
         assert_eq!(
             EscConfig::resolve_path(Some(&config_path)).unwrap(),
+            Some(config_path)
+        );
+    }
+
+    #[test]
+    fn resolve_path_from_tsconfig_file() {
+        let project_dir = tempdir().unwrap();
+        let config_path = EscConfig::join_to(project_dir.path());
+        let tsconfig_path = project_dir.path().join(OTHER_CONFIG_FILE);
+        std::fs::write(&config_path, "").unwrap();
+        std::fs::write(&tsconfig_path, "{}").unwrap();
+
+        assert_eq!(
+            EscConfig::resolve_path(Some(&tsconfig_path)).unwrap(),
             Some(config_path)
         );
     }

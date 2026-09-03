@@ -3,7 +3,9 @@ use crate::prelude::*;
 use oxc_resolver::TsConfig;
 use oxc_type_checker::tsoptions::parse_config_file;
 
-const CONFIG_FILE: &str = "tsconfig.json";
+pub const CONFIG_FILE: &str = "tsconfig.json";
+const CONFIG_EXT: &str = "json";
+const OTHER_CONFIG_FILE: &str = super::CONFIG_FILE;
 
 #[derive(Debug)]
 pub struct EscConfigTs(pub Arc<TsConfig>);
@@ -34,7 +36,14 @@ impl EscConfigTs {
             None => cwd,
         };
 
-        if initial_path.is_file() {
+        if initial_path.is_file()
+            && initial_path
+                .extension()
+                .is_some_and(|extension| extension == CONFIG_EXT)
+            && initial_path
+                .file_name()
+                .is_some_and(|file_name| file_name != OTHER_CONFIG_FILE)
+        {
             return Ok(Some(initial_path));
         }
 
@@ -68,6 +77,20 @@ mod tests {
 
         assert_eq!(
             EscConfigTs::resolve_path(Some(&config_path)).unwrap(),
+            Some(config_path)
+        );
+    }
+
+    #[test]
+    fn resolve_path_from_errconfig_file() {
+        let project_dir = tempdir().unwrap();
+        let config_path = EscConfigTs::join_to(project_dir.path());
+        let errconfig_path = project_dir.path().join(OTHER_CONFIG_FILE);
+        std::fs::write(&config_path, "{}").unwrap();
+        std::fs::write(&errconfig_path, "").unwrap();
+
+        assert_eq!(
+            EscConfigTs::resolve_path(Some(&errconfig_path)).unwrap(),
             Some(config_path)
         );
     }
