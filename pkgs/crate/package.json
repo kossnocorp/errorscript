@@ -1,0 +1,9 @@
+{
+  "name": "@errorscript/crate",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@errorscript/core": "workspace:*",
+    "typescript": "^7.0.2"
+  }
+}

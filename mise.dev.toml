@@ -1,0 +1,4 @@
+# Tools ========================================================================
+[tools]
+"cargo:cargo-edit" = "latest" # Crates management
+fnox = "latest" # Secrets

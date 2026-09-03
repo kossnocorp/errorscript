@@ -1,0 +1,6 @@
+# Rust
+/target/
+# Node.js
+node_modules/
+# Dist
+/pkgs/*/dist/

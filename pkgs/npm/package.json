@@ -1,0 +1,30 @@
+{
+  "name": "@errorscript/core",
+  "version": "0.0.0",
+  "description": "Typed errors in TypeScript without verbosity",
+  "license": "MIT",
+  "author": "Sasha Koss <koss@nocorp.me>",
+  "repository": "https://github.com/kossnocorp/errorscript",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "require": {
+          "types": "./index.d.cts",
+          "default": "./index.cjs"
+        },
+        "import": {
+          "types": "./index.d.ts",
+          "default": "./index.js"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@js-fns/dev": "^0.3.5",
+    "typescript": "^7.0.2"
+  }
+}

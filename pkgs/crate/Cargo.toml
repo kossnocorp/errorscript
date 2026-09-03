@@ -1,0 +1,25 @@
+[package]
+name = "errorscript"
+version = "0.0.0"
+edition = "2024"
+description = "Typed errors in TypeScript without verbosity"
+authors = ["Sasha Koss <koss@nocorp.me>"]
+license = "MIT"
+repository = "https://github.com/kossnocorp/errorscript"
+
+[[bin]]
+name = "esc"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+oxc_allocator = "0.148.0"
+oxc_ast = "0.148.0"
+oxc_ast_visit = "0.148.0"
+oxc_parser = "0.148.0"
+oxc_resolver = "11.24.3"
+oxc_span = "0.148.0"
+oxc_syntax = "0.148.0"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.1", features = ["full"] }
+usage = { package = "usage-rs", version = "6" }
