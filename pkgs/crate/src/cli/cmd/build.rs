@@ -10,7 +10,8 @@ impl RunAsync for EscCliCmdBuild {
     type Output = Result<()>;
 
     async fn run_async(self) -> Self::Output {
-        println!("Hello {:?}", self);
+        let config = EscConfig::resolve(self.project_args.project.as_ref())?;
+        println!("Config: {:?}", config);
         Ok(())
     }
 }
