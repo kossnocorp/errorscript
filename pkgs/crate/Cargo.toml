@@ -13,13 +13,14 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.104"
-oxc_allocator = "0.148.0"
-oxc_ast = "0.148.0"
-oxc_ast_visit = "0.148.0"
-oxc_parser = "0.148.0"
+oxc_allocator = { path = "../../vendor/oxc/crates/oxc_allocator" }
+oxc_ast = { path = "../../vendor/oxc/crates/oxc_ast" }
+oxc_ast_visit = { path = "../../vendor/oxc/crates/oxc_ast_visit" }
+oxc_parser = { path = "../../vendor/oxc/crates/oxc_parser" }
 oxc_resolver = "11.24.3"
-oxc_span = "0.148.0"
-oxc_syntax = "0.148.0"
+oxc_span = { path = "../../vendor/oxc/crates/oxc_span" }
+oxc_syntax = { path = "../../vendor/oxc/crates/oxc_syntax" }
+oxc_type_checker = { path = "../../vendor/oxc/crates/oxc_type_checker" }
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.53.1", features = ["full"] }
 toml = "0.9.8"

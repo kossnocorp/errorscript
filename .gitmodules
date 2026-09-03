@@ -1,0 +1,3 @@
+[submodule "vendor/oxc"]
+	path = vendor/oxc
+	url = git@github.com:oxc-project/oxc.git
