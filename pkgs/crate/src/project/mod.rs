@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+const PROJECT_EXTS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
+
 #[derive(Debug)]
 pub struct EscProject {
     pub config: Option<EscConfig>,
@@ -75,7 +77,11 @@ impl EscProject {
                 for entry in entries {
                     let path = entry
                         .with_context(|| format!("Failed to resolve file pattern: {pattern}"))?;
-                    if path.is_file() {
+                    if path.is_file()
+                        && PROJECT_EXTS
+                            .iter()
+                            .any(|ext| path.extension().is_some_and(|e| e == *ext))
+                    {
                         files.insert(path);
                     }
                 }

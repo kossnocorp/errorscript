@@ -11,7 +11,8 @@ impl RunAsync for EscCliCmdBuild {
 
     async fn run_async(self) -> Self::Output {
         let project = EscProject::resolve(self.project_args.project.as_ref()).await?;
-        println!("Project: {:?}", project);
+        let files = project.files().await?;
+        println!("Files: {:?}", files);
         Ok(())
     }
 }
