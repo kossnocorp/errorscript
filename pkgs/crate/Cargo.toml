@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.104"
+glob = "0.3.3"
 oxc_allocator = { path = "../../vendor/oxc/crates/oxc_allocator" }
 oxc_ast = { path = "../../vendor/oxc/crates/oxc_ast" }
 oxc_ast_visit = { path = "../../vendor/oxc/crates/oxc_ast_visit" }

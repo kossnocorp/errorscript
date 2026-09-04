@@ -1,5 +1,7 @@
-function main() {
-  console.log("Hello, World!");
+export function throws() {
+  throw new Error("This function always throws an error.");
 }
 
-main();
+export function neverThrows() {
+  return "This function never throws an error.";
+}

@@ -8,26 +8,39 @@ const CONFIG_EXT: &str = "json";
 const OTHER_CONFIG_FILE: &str = super::CONFIG_FILE;
 
 #[derive(Debug)]
-pub struct EscConfigTs(pub Arc<TsConfig>);
+pub struct EscConfigTs {
+    pub tsconfig: TsConfig,
+    pub file_name: OsString,
+    pub dir: PathBuf,
+}
 
 impl EscConfigTs {
     pub fn resolve(path: Option<&PathBuf>) -> Result<Option<Self>> {
         let config_path = Self::resolve_path(path)?;
 
         config_path
-            .map(|config_path| {
+            .map(|(file_name, dir)| {
+                let config_path = dir.join(&file_name);
                 parse_config_file(&config_path)
-                    .map(Self)
+                    .map(|tsconfig| Self {
+                        tsconfig: Arc::unwrap_or_clone(tsconfig),
+                        file_name,
+                        dir,
+                    })
                     .with_context(|| format!("Failed to parse config at {}", config_path.display()))
             })
             .transpose()
+    }
+
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     fn join_to(path: &Path) -> PathBuf {
         path.join(CONFIG_FILE)
     }
 
-    fn resolve_path(path: Option<&PathBuf>) -> Result<Option<PathBuf>> {
+    fn resolve_path(path: Option<&PathBuf>) -> Result<Option<(OsString, PathBuf)>> {
         let cwd = std::env::current_dir().context("Failed to resolve the current directory")?;
 
         let initial_path = match path {
@@ -44,13 +57,28 @@ impl EscConfigTs {
                 .file_name()
                 .is_some_and(|file_name| file_name != OTHER_CONFIG_FILE)
         {
-            return Ok(Some(initial_path));
+            return Self::config_location(initial_path).map(Some);
         }
 
-        Ok(initial_path
+        initial_path
             .ancestors()
             .map(Self::join_to)
-            .find(|candidate| candidate.is_file()))
+            .find(|candidate| candidate.is_file())
+            .map(Self::config_location)
+            .transpose()
+    }
+
+    fn config_location(config_path: PathBuf) -> Result<(OsString, PathBuf)> {
+        let file_name = config_path
+            .file_name()
+            .context("Resolved TypeScript config path has no file name")?
+            .to_owned();
+        let dir = config_path
+            .parent()
+            .context("Resolved TypeScript config path has no parent directory")?
+            .to_path_buf();
+
+        Ok((file_name, dir))
     }
 }
 
@@ -77,7 +105,7 @@ mod tests {
 
         assert_eq!(
             EscConfigTs::resolve_path(Some(&config_path)).unwrap(),
-            Some(config_path)
+            config_loc(&config_path)
         );
     }
 
@@ -91,7 +119,7 @@ mod tests {
 
         assert_eq!(
             EscConfigTs::resolve_path(Some(&errconfig_path)).unwrap(),
-            Some(config_path)
+            config_loc(&config_path)
         );
     }
 
@@ -103,7 +131,7 @@ mod tests {
 
         assert_eq!(
             EscConfigTs::resolve_path(Some(&project_dir.path().to_path_buf())).unwrap(),
-            Some(config_path)
+            config_loc(&config_path)
         );
     }
 
@@ -117,7 +145,7 @@ mod tests {
 
         assert_eq!(
             EscConfigTs::resolve_path(Some(&nested_dir)).unwrap(),
-            Some(config_path)
+            config_loc(&config_path)
         );
     }
 
@@ -129,7 +157,10 @@ mod tests {
 
         let _cwd = Cwd::set(project_dir.path()).unwrap();
 
-        assert_eq!(EscConfigTs::resolve_path(None).unwrap(), Some(config_path));
+        assert_eq!(
+            EscConfigTs::resolve_path(None).unwrap(),
+            config_loc(&config_path)
+        );
     }
 
     #[test]
@@ -142,7 +173,10 @@ mod tests {
 
         let _cwd = Cwd::set(&nested_dir).unwrap();
 
-        assert_eq!(EscConfigTs::resolve_path(None).unwrap(), Some(config_path));
+        assert_eq!(
+            EscConfigTs::resolve_path(None).unwrap(),
+            config_loc(&config_path)
+        );
     }
 
     #[test]
@@ -172,7 +206,7 @@ mod tests {
         let config = EscConfigTs::resolve(Some(&config_path)).unwrap().unwrap();
 
         assert_eq!(
-            config.0.include,
+            config.tsconfig.include,
             Some(vec![
                 project_dir.path().join("src/**/*.ts"),
                 project_dir.path().join("src/**/*.js"),
@@ -189,6 +223,13 @@ mod tests {
         let error = EscConfigTs::resolve(Some(&config_path)).unwrap_err();
 
         assert!(error.to_string().contains("Failed to parse config at"));
+    }
+
+    fn config_loc(config_path: &Path) -> Option<(OsString, PathBuf)> {
+        Some((
+            config_path.file_name().unwrap().to_owned(),
+            config_path.parent().unwrap().to_path_buf(),
+        ))
     }
 
     struct Cwd {
