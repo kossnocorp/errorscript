@@ -1,6 +1,6 @@
 pub use crate::*;
 
-pub use std::collections::HashSet;
+pub use std::collections::{HashMap, HashSet};
 pub use std::ffi::OsString;
 pub use std::path::{Path, PathBuf};
 pub use std::sync::Arc;

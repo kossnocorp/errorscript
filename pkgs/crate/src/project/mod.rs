@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+pub type EscProjectLoadingQueue = Arc<tokio::sync::Mutex<Vec<PathBuf>>>;
+
 const PROJECT_EXTS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
 
 #[derive(Debug)]
@@ -92,6 +94,53 @@ impl EscProject {
         .await
         .context("File resolution task failed")?
     }
+
+    pub async fn load_files(&self) -> Result<HashMap<PathBuf, String>> {
+        let files: EscProjectLoadingQueue = Arc::new(tokio::sync::Mutex::new(
+            self.files().await?.into_iter().collect(),
+        ));
+        let mut loaded = HashMap::new();
+        let mut scheduled = HashSet::new();
+        let mut tasks = tokio::task::JoinSet::new();
+
+        loop {
+            let pending = {
+                let mut files = files.lock().await;
+                files
+                    .drain(..)
+                    .filter(|path| scheduled.insert(path.clone()))
+                    .collect::<Vec<_>>()
+            };
+
+            for path in pending {
+                tasks.spawn(Self::load_file(path, Arc::clone(&files)));
+            }
+
+            let Some(file) = tasks.join_next().await else {
+                break;
+            };
+            let (path, source_text) = file
+                .context("File loading task failed")?
+                .context("Failed to load project file")?;
+            loaded.insert(path, source_text);
+        }
+
+        Ok(loaded)
+    }
+
+    pub async fn load_file(
+        path: PathBuf,
+        files: EscProjectLoadingQueue,
+    ) -> Result<(PathBuf, String)> {
+        let source_code = tokio::fs::read_to_string(&path)
+            .await
+            .with_context(|| format!("Failed to read project file at {}", path.display()))?;
+
+        // TODO: Parse source_code and extract dependencies and push them into the files queue
+        drop(files);
+
+        Ok((path, source_code))
+    }
 }
 
 #[cfg(test)]
@@ -164,15 +213,22 @@ mod tests {
 
         let included_file = src_dir.join("included.ts");
         let explicit_file = src_dir.join("explicit.ts");
-        std::fs::write(&included_file, "").unwrap();
-        std::fs::write(&explicit_file, "").unwrap();
+        std::fs::write(&included_file, "included").unwrap();
+        std::fs::write(&explicit_file, "explicit").unwrap();
 
         let path = project_dir.path().to_path_buf();
         let project = EscProject::resolve(Some(&path)).await.unwrap();
 
         assert_eq!(
             project.files().await.unwrap(),
-            HashSet::from([included_file, explicit_file])
+            HashSet::from([included_file.clone(), explicit_file.clone()])
+        );
+        assert_eq!(
+            project.load_files().await.unwrap(),
+            HashMap::from([
+                (included_file, "included".to_owned()),
+                (explicit_file, "explicit".to_owned()),
+            ])
         );
     }
 }
