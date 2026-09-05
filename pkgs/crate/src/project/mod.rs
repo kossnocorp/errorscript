@@ -3,78 +3,56 @@ use crate::prelude::*;
 mod state;
 pub use state::*;
 
-pub type EscProjectLoadingQueue = Arc<tokio::sync::Mutex<Vec<PathBuf>>>;
-
-const PROJECT_EXTS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
+pub type EscProjectLoadingQueue = Arc<tokio::sync::Mutex<Vec<EscModulePath>>>;
 
 #[derive(Debug)]
 pub struct EscProject {
     pub config: Option<EscConfig>,
-    pub config_ts: Option<EscConfigTs>,
+    pub resolver: EscResolver,
     pub state: EscProjectState,
 }
 
 impl EscProject {
     pub async fn resolve(path: Option<&PathBuf>) -> Result<Self> {
         let config_path = path.cloned();
-        let config_ts_path = path.cloned();
+        let resolver_path = path.cloned();
 
-        let (config, config_ts) = tokio::join!(
+        let (config, resolver) = tokio::join!(
             tokio::task::spawn_blocking(move || EscConfig::resolve(config_path.as_ref())),
-            tokio::task::spawn_blocking(move || EscConfigTs::resolve(config_ts_path.as_ref())),
+            tokio::task::spawn_blocking(move || EscResolver::resolve(resolver_path.as_ref())),
         );
 
         let config = config
             .context("ErrorScript config task failed")?
             .context("Failed to load ErrorScript config")?;
-        let config_ts = config_ts
-            .context("TypeScript config task failed")?
-            .context("Failed to load TypeScript config")?;
+        let resolver = resolver
+            .context("Resolver task failed")?
+            .context("Failed to initialize resolver")?;
 
         let state = EscProjectState::Resolved;
 
         Ok(Self {
             config,
-            config_ts,
+            resolver,
             state,
         })
     }
 
-    pub fn file_patterns(&self) -> HashSet<PathBuf> {
+    pub fn file_patterns(&self) -> Result<HashSet<PathBuf>> {
         if let Some(config) = &self.config
             && let Some(files) = &config.manifest.files
         {
-            return files
+            return Ok(files
                 .iter()
                 .map(|pattern| config.dir().join(pattern))
-                .collect();
+                .collect());
         }
 
-        let mut patterns = HashSet::new();
-
-        if let Some(config_ts) = &self.config_ts {
-            let tsconfig = &config_ts.tsconfig;
-
-            if let Some(files) = &tsconfig.files {
-                patterns.extend(files.iter().map(|pattern| config_ts.dir().join(pattern)));
-            }
-
-            match &tsconfig.include {
-                Some(include) => {
-                    patterns.extend(include.iter().map(|pattern| config_ts.dir().join(pattern)));
-                }
-                None if tsconfig.files.is_none() => {
-                    patterns.insert(config_ts.dir().join("**/*"));
-                }
-                None => {}
-            }
-        }
-
-        patterns
+        self.resolver.file_patterns()
     }
 
-    pub async fn files(&self) -> Result<HashSet<PathBuf>> {
-        let patterns = self.file_patterns();
+    pub async fn files(&self) -> Result<HashSet<EscModulePath>> {
+        let patterns = self.file_patterns()?;
 
         tokio::task::spawn_blocking(move || {
             let mut files = HashSet::new();
@@ -90,11 +68,11 @@ impl EscProject {
                     let path = entry
                         .with_context(|| format!("Failed to resolve file pattern: {pattern}"))?;
                     if path.is_file()
-                        && PROJECT_EXTS
+                        && oxc_span::VALID_EXTENSIONS
                             .iter()
                             .any(|ext| path.extension().is_some_and(|e| e == *ext))
                     {
-                        files.insert(path);
+                        files.insert(EscModulePath::try_new(path)?);
                     }
                 }
             }
@@ -112,6 +90,7 @@ impl EscProject {
         let mut parsed_files = HashMap::new();
         let mut scheduled = HashSet::new();
         let mut tasks = tokio::task::JoinSet::new();
+        let resolver = self.resolver.clone();
 
         loop {
             let pending = {
@@ -123,7 +102,10 @@ impl EscProject {
             };
 
             for path in pending {
-                tasks.spawn(Self::parse_file(path.clone(), Arc::clone(&files)));
+                let path = path.clone();
+                let files = Arc::clone(&files);
+                let resolver = resolver.clone();
+                tasks.spawn(Self::parse_file(path, files, resolver));
             }
 
             let Some(file) = tasks.join_next().await else {
@@ -135,24 +117,30 @@ impl EscProject {
             parsed_files.insert(path, file);
         }
 
+        let mut processed_modules = parsed_files
+            .keys()
+            .map(EscModulePath::as_path)
+            .collect::<Vec<_>>();
+        processed_modules.sort_unstable();
+        println!("Processed modules: {processed_modules:#?}");
         self.state = EscProjectState::Parsed(EscProjectStateParsed { parsed_files });
 
         Ok(())
     }
 
     pub async fn parse_file(
-        path: PathBuf,
+        path: EscModulePath,
         files: EscProjectLoadingQueue,
-    ) -> Result<(PathBuf, EscParserFile)> {
+        resolver: EscResolver,
+    ) -> Result<(EscModulePath, EscModule)> {
         let source_code = tokio::fs::read_to_string(&path)
             .await
-            .with_context(|| format!("Failed to read project file at {}", path.display()))?;
+            .with_context(|| format!("Failed to read project file at {path}"))?;
 
-        let file = EscParserFile::parse(source_code, &path)?;
+        let file = EscModule::parse(source_code, &path)?;
 
-        // TODO: Extract dependencies and push them into the files queue
-
-        drop(files);
+        let dependencies = file.extract_dependencies(&path, &resolver);
+        files.lock().await.extend(dependencies);
 
         Ok((path, file))
     }
@@ -173,8 +161,17 @@ mod tests {
         let project = EscProject::resolve(Some(&path)).await.unwrap();
 
         assert!(project.config.is_some());
-        assert!(project.config_ts.is_some());
-        assert!(project.file_patterns().is_empty());
+        assert!(project.file_patterns().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolve_without_tsconfig() {
+        let project_dir = tempdir().unwrap();
+        let path = project_dir.path().to_path_buf();
+
+        let project = EscProject::resolve(Some(&path)).await.unwrap();
+
+        assert!(project.file_patterns().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -201,17 +198,18 @@ mod tests {
         std::fs::write(&ts_file, "").unwrap();
         std::fs::write(&ts_explicit_file, "").unwrap();
 
+        let resolver = EscResolver::resolve(Some(&ts_path)).unwrap();
         let project = EscProject {
             config: EscConfig::resolve(Some(&esc_path)).unwrap(),
-            config_ts: EscConfigTs::resolve(Some(&ts_path)).unwrap(),
+            resolver,
             state: EscProjectState::Resolved,
         };
 
-        let patterns = project.file_patterns();
+        let patterns = project.file_patterns().unwrap();
         assert!(patterns.contains(&esc_dir.join("src/**/*.esc.ts")));
         assert_eq!(patterns.len(), 1);
 
-        assert_eq!(project.files().await.unwrap(), HashSet::from([esc_file]));
+        assert_eq!(project.files().await.unwrap(), module_paths([esc_file]));
     }
 
     #[tokio::test]
@@ -237,16 +235,54 @@ mod tests {
 
         assert_eq!(
             project.files().await.unwrap(),
-            HashSet::from([included_file.clone(), explicit_file.clone()])
+            module_paths([included_file.clone(), explicit_file.clone()])
         );
         project.parse_files().await.unwrap();
         if let EscProjectState::Parsed(state) = &project.state {
             assert_eq!(
                 state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
-                HashSet::from([included_file, explicit_file])
+                module_paths([included_file, explicit_file])
             );
         } else {
             panic!("Expected parsed state");
         }
+    }
+
+    #[tokio::test]
+    async fn loads_transitive_dependencies() {
+        let project_dir = tempdir().unwrap();
+        let src_dir = project_dir.path().join("src");
+        std::fs::create_dir(&src_dir).unwrap();
+        std::fs::write(
+            project_dir.path().join("errconfig.toml"),
+            "files = [\"src/entry.ts\"]",
+        )
+        .unwrap();
+
+        let entry = src_dir.join("entry.ts");
+        let middle = src_dir.join("middle.ts");
+        let leaf = src_dir.join("leaf.ts");
+        std::fs::write(&entry, "import './middle';").unwrap();
+        std::fs::write(&middle, "import './leaf';").unwrap();
+        std::fs::write(&leaf, "export const leaf = true;").unwrap();
+
+        let path = project_dir.path().to_path_buf();
+        let mut project = EscProject::resolve(Some(&path)).await.unwrap();
+        project.parse_files().await.unwrap();
+
+        let EscProjectState::Parsed(state) = &project.state else {
+            panic!("Expected parsed state");
+        };
+        assert_eq!(
+            state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
+            module_paths([entry, middle, leaf])
+        );
+    }
+
+    fn module_paths(paths: impl IntoIterator<Item = PathBuf>) -> HashSet<EscModulePath> {
+        paths
+            .into_iter()
+            .map(|path| EscModulePath::try_new(path).unwrap())
+            .collect()
     }
 }

@@ -33,6 +33,18 @@ importers:
         specifier: ^20
         version: 20.19.43
 
+  pkgs/crate/examples/cjs:
+    dependencies:
+      '@js-fns/xxhash':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+  pkgs/crate/examples/esm:
+    dependencies:
+      '@js-fns/xxhash':
+        specifier: ^0.1.0
+        version: 0.1.0
+
   pkgs/npm:
     devDependencies:
       '@js-fns/dev':
@@ -47,6 +59,14 @@ packages:
   '@js-fns/dev@0.3.5':
     resolution: {integrity: sha512-77ROvN4Wa55Qm8tJoxW8RkMLF9+du5sAtau3mZ/JK2rirulCy8j1a/Qcjn67620ZrAmoM8wanhMpBA75IPq73w==}
     hasBin: true
+
+  '@js-fns/xxhash@0.1.0':
+    resolution: {integrity: sha512-9h/ypoN70lM6xepbhIIjZ68aPkDTjciGVEP0wOzZ+WyX/eLnLTHGLuCM4/LKeQhPrihuIXVdMBE1rDlASVxBww==}
+    peerDependencies:
+      '@js-fns/canon': ^0.2.0
+    peerDependenciesMeta:
+      '@js-fns/canon':
+        optional: true
 
   '@oxc-project/types@0.147.0':
     resolution: {integrity: sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg==}
@@ -712,6 +732,8 @@ snapshots:
       - oxlint-tsgolint
       - svelte
       - vite-plus
+
+  '@js-fns/xxhash@0.1.0': {}
 
   '@oxc-project/types@0.147.0': {}
 

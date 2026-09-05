@@ -1,0 +1,8 @@
+{
+  "name": "@errorscript/example-basic",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "@js-fns/xxhash": "^0.1.0"
+  }
+}

@@ -6,8 +6,11 @@ pub use cli::*;
 mod config;
 pub use config::*;
 
-mod parser;
-pub use parser::*;
+mod module;
+pub use module::*;
+
+mod resolver;
+pub use resolver::*;
 
 mod project;
 pub use project::*;

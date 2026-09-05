@@ -8,5 +8,5 @@ pub enum EscProjectState {
 
 #[derive(Debug)]
 pub struct EscProjectStateParsed {
-    pub parsed_files: HashMap<PathBuf, EscParserFile>,
+    pub parsed_files: HashMap<EscModulePath, EscModule>,
 }

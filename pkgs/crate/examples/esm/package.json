@@ -1,0 +1,8 @@
+{
+  "name": "@errorscript/example-esm",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@js-fns/xxhash": "^0.1.0"
+  }
+}

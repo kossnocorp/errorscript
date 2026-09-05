@@ -1,11 +1,8 @@
 use crate::prelude::*;
 
-mod ts;
-pub use ts::*;
-
 pub const CONFIG_FILE: &str = "errconfig.toml";
 const CONFIG_EXT: &str = "toml";
-const OTHER_CONFIG_FILE: &str = ts::CONFIG_FILE;
+const OTHER_CONFIG_FILE: &str = "tsconfig.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscConfigManifest {
