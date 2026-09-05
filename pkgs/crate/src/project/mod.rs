@@ -137,9 +137,9 @@ impl EscProject {
             .await
             .with_context(|| format!("Failed to read project file at {path}"))?;
 
-        let file = EscModule::parse(source_code, &path)?;
+        let file = EscModule::parse(source_code, &path, &resolver)?;
 
-        let dependencies = file.extract_dependencies(&path, &resolver);
+        let dependencies = file.extract_dependencies();
         files.lock().await.extend(dependencies);
 
         Ok((path, file))
@@ -277,6 +277,77 @@ mod tests {
             state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
             module_paths([entry, middle, leaf])
         );
+    }
+
+    #[tokio::test]
+    async fn loads_runtime_and_declaration_dependencies() {
+        let project_dir = tempdir().unwrap();
+        let root = project_dir.path();
+        let package = root.join("node_modules/dual");
+        std::fs::create_dir_all(&package).unwrap();
+        std::fs::write(root.join("errconfig.toml"), "files = [\"entry.ts\"]").unwrap();
+        std::fs::write(
+            package.join("package.json"),
+            r#"{"exports":{"types":"./index.d.ts","import":"./index.js","require":"./index.cjs"}}"#,
+        )
+        .unwrap();
+        let fixtures = [
+            (
+                "entry.ts",
+                "import 'dual'; const cjs = require('dual'); import type { T } from './types.js';",
+            ),
+            ("types.d.ts", "export interface T {}"),
+            ("types.js", "throw new Error('type-only dependency');"),
+            ("node_modules/dual/index.d.ts", "export * from './leaf.js';"),
+            (
+                "node_modules/dual/leaf.d.ts",
+                "export declare const leaf: number;",
+            ),
+            ("node_modules/dual/index.js", "export * from './leaf.js';"),
+            ("node_modules/dual/leaf.js", "export const leaf = 1;"),
+            (
+                "node_modules/dual/index.cjs",
+                "module.exports = require('./leaf.cjs');",
+            ),
+            (
+                "node_modules/dual/leaf.d.cts",
+                "export declare const leaf: number;",
+            ),
+            (
+                "node_modules/dual/leaf.cjs",
+                "module.exports = { leaf: 1 }; require('./index.cjs'); import('./dynamic.mjs');",
+            ),
+            (
+                "node_modules/dual/dynamic.mjs",
+                "export const dynamic = true;",
+            ),
+        ];
+        for (file, source) in fixtures {
+            std::fs::write(root.join(file), source).unwrap();
+        }
+
+        let mut project = EscProject::resolve(Some(&root.to_path_buf()))
+            .await
+            .unwrap();
+        project.parse_files().await.unwrap();
+        let EscProjectState::Parsed(state) = &project.state else {
+            panic!("Expected parsed state");
+        };
+        assert_eq!(
+            state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
+            module_paths(
+                fixtures
+                    .iter()
+                    .filter(|(file, _)| *file != "types.js")
+                    .map(|(file, _)| root.join(file))
+            )
+        );
+        for module in state.parsed_files.values() {
+            module.with_parsed(|parsed| {
+                assert!(!parsed.panicked);
+                assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+            });
+        }
     }
 
     fn module_paths(paths: impl IntoIterator<Item = PathBuf>) -> HashSet<EscModulePath> {

@@ -4,16 +4,17 @@ use oxc_allocator::Allocator;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
-use oxc_type_checker::compiler::{ExternalModuleReferences, collect_external_module_references};
 use self_cell::self_cell;
 
 mod path;
+mod references;
 pub use path::*;
+pub use references::*;
 
 #[derive(Debug)]
 pub struct EscModule {
     cell: EscModuleSemanticCell,
-    external_references: ExternalModuleReferences,
+    pub references: EscModuleReferences,
 }
 
 self_cell! {
@@ -84,7 +85,11 @@ impl Debug for EscModuleSemanticData<'_> {
     }
 }
 impl EscModule {
-    pub fn parse(source_code: String, path: &EscModulePath) -> Result<EscModule> {
+    pub fn parse(
+        source_code: String,
+        path: &EscModulePath,
+        resolver: &EscResolver,
+    ) -> Result<EscModule> {
         let owner = EscModuleOwner {
             allocator: EscModuleAllocator(Allocator::new()),
             source_code,
@@ -97,11 +102,12 @@ impl EscModule {
             EscModuleData { parsed }
         });
 
-        let external_references = file_cell.with_dependent(|_, data| {
-            collect_external_module_references(
+        let references = file_cell.with_dependent(|_, data| {
+            EscModuleReferences::collect(
                 &data.parsed.program,
                 &data.parsed.module_record,
-                source_type.is_typescript_definition(),
+                path,
+                resolver,
             )
         });
 
@@ -117,7 +123,7 @@ impl EscModule {
 
         let file = EscModule {
             cell: semantic_cell,
-            external_references,
+            references,
         };
         Ok(file)
     }
@@ -137,16 +143,7 @@ impl EscModule {
         self.cell.with_dependent(|_, data| f(&data.semantic))
     }
 
-    pub fn extract_dependencies(
-        &self,
-        importing_file: &EscModulePath,
-        resolver: &EscResolver,
-    ) -> Vec<EscModulePath> {
-        self.external_references
-            .imports
-            .iter()
-            .filter_map(|specifier| resolver.resolve_dts(importing_file, specifier).ok())
-            .filter_map(|resolution| EscModulePath::try_new(resolution.path().to_path_buf()).ok())
-            .collect()
+    pub fn extract_dependencies(&self) -> Vec<EscModulePath> {
+        self.references.dependencies().cloned().collect()
     }
 }

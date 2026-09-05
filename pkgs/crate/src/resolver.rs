@@ -1,9 +1,7 @@
 use crate::prelude::*;
 
-use std::ops::Deref;
-
 use oxc_resolver::{
-    ResolveOptions, Resolver, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
+    ResolveError, ResolveOptions, Resolver, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
 use oxc_span::VALID_EXTENSIONS;
 
@@ -13,33 +11,61 @@ const OTHER_CONFIG_FILE: &str = crate::config::CONFIG_FILE;
 
 #[derive(Clone, Debug)]
 pub struct EscResolver {
-    inner: Arc<Resolver>,
+    import: Arc<EscResolverMode>,
+    require: Arc<EscResolverMode>,
     config_path: Option<PathBuf>,
+}
+
+/// Oxc resolves one target at a time. Each mode shares its filesystem cache with
+/// the other mode and with its type-facing resolver.
+#[derive(Debug)]
+struct EscResolverMode {
+    module: Resolver,
+    types: Resolver,
+}
+
+impl EscResolverMode {
+    fn new(module: Resolver, mut options: ResolveOptions) -> Self {
+        options.condition_names.push("types".into());
+        // resolve_dts delegates package imports (#aliases) and self references
+        // to the general resolver, so those paths need TS substitution too.
+        for (extension, aliases) in &mut options.extension_alias {
+            *aliases = match extension.as_str() {
+                ".js" => [".ts", ".tsx", ".d.ts", ".js"].as_slice(),
+                ".jsx" => [".tsx", ".ts", ".d.ts", ".jsx"].as_slice(),
+                ".mjs" => [".mts", ".d.mts", ".mjs"].as_slice(),
+                ".cjs" => [".cts", ".d.cts", ".cjs"].as_slice(),
+                _ => continue,
+            }
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        }
+        let types = module.clone_with_options(options);
+        Self { module, types }
+    }
 }
 
 impl EscResolver {
     pub fn resolve(path: Option<&PathBuf>) -> Result<Self> {
         let config_path = Self::resolve_path(path)?;
         let alias = |extensions: &[&str]| extensions.iter().map(ToString::to_string).collect();
-        let resolver = Arc::new(Resolver::new(ResolveOptions {
+        // Like Rolldown, runtime resolution prefers actual JS and falls back to
+        // TS sources. Declaration substitution belongs to resolve_dts instead.
+        let mut options = ResolveOptions {
             extensions: VALID_EXTENSIONS
                 .iter()
-                .map(|extension| format!(".{extension}"))
+                .map(|ext| format!(".{ext}"))
                 .collect(),
-            main_fields: vec!["module".to_string(), "main".to_string()],
-            condition_names: vec!["module".to_string(), "import".to_string()],
+            main_fields: vec!["module".into(), "main".into()],
+            condition_names: vec!["import".into(), "node".into()],
             extension_alias: vec![
-                (
-                    ".js".to_string(),
-                    alias(&[".ts", ".tsx", ".d.ts", ".js", ".jsx"]),
-                ),
-                (
-                    ".jsx".to_string(),
-                    alias(&[".tsx", ".ts", ".d.ts", ".jsx", ".js"]),
-                ),
-                (".mjs".to_string(), alias(&[".mts", ".d.mts", ".mjs"])),
-                (".cjs".to_string(), alias(&[".cts", ".d.cts", ".cjs"])),
+                (".js".into(), alias(&[".js", ".ts", ".tsx"])),
+                (".jsx".into(), alias(&[".jsx", ".ts", ".tsx"])),
+                (".mjs".into(), alias(&[".mjs", ".mts"])),
+                (".cjs".into(), alias(&[".cjs", ".cts"])),
             ],
+            builtin_modules: true,
             tsconfig: config_path.as_ref().map(|config_path| {
                 TsconfigDiscovery::Manual(TsconfigOptions {
                     config_file: config_path.clone(),
@@ -47,18 +73,113 @@ impl EscResolver {
                 })
             }),
             ..ResolveOptions::default()
-        }));
+        };
+        let import = Arc::new(EscResolverMode::new(
+            Resolver::new(options.clone()),
+            options.clone(),
+        ));
+        options.condition_names = vec!["require".into(), "node".into()];
+        options.main_fields = vec!["main".into()];
+        let require = Arc::new(EscResolverMode::new(
+            import.module.clone_with_options(options.clone()),
+            options,
+        ));
 
         if let Some(config_path) = &config_path {
-            resolver
+            import
+                .module
                 .resolve_tsconfig(config_path)
                 .with_context(|| format!("Failed to parse config at {}", config_path.display()))?;
         }
-
         Ok(Self {
-            inner: resolver,
+            import,
+            require,
             config_path,
         })
+    }
+
+    pub fn resolve_reference(
+        &self,
+        importing_file: &EscModulePath,
+        info: EscModuleReferenceInfo,
+    ) -> EscModuleReference {
+        let resolver = if matches!(
+            info.kind,
+            EscModuleReferenceKind::Require | EscModuleReferenceKind::ImportEquals
+        ) {
+            &self.require
+        } else {
+            &self.import
+        };
+        // Triple-slash paths are relative to the source file, including names
+        // without a ./ prefix, and refer to the literal file rather than a pair.
+        if info.kind == EscModuleReferenceKind::Path {
+            let path = importing_file
+                .as_path()
+                .parent()
+                .unwrap()
+                .join(&info.specifier);
+            let module = EscModulePath::try_new(path.clone()).ok().or_else(|| {
+                resolver
+                    .module
+                    .resolve_file(importing_file, &path.to_string_lossy())
+                    .ok()
+                    .and_then(|resolution| {
+                        EscModulePath::try_new(resolution.path().to_path_buf()).ok()
+                    })
+            });
+            return match module {
+                Some(module) => EscModuleReference::External {
+                    info,
+                    module,
+                    types: None,
+                },
+                None => EscModuleReference::Unresolved { info },
+            };
+        }
+
+        let module = resolver
+            .module
+            .resolve_file(importing_file, &info.specifier);
+        if let Err(ResolveError::Builtin { resolved, .. }) = &module {
+            return EscModuleReference::Internal {
+                info,
+                name: resolved.clone(),
+            };
+        }
+        let to_path = |resolution: oxc_resolver::Resolution| {
+            oxc_span::SourceType::from_path(resolution.path()).ok()?;
+            EscModulePath::try_new(resolution.path().to_path_buf()).ok()
+        };
+        let module = module.ok().and_then(to_path);
+        let types = resolver
+            .types
+            .resolve_dts(importing_file, &info.specifier)
+            .ok()
+            .and_then(to_path);
+
+        match (module, types) {
+            (Some(module), types) => {
+                let types = types.filter(|path| {
+                    path != &module
+                        && oxc_span::SourceType::from_path(path)
+                            .is_ok_and(|source_type| source_type.is_typescript())
+                });
+                EscModuleReference::External {
+                    info,
+                    module,
+                    types,
+                }
+            }
+            // @types packages, ambient declarations and type-only dependencies
+            // may have no executable target. Their primary file is the declaration.
+            (None, Some(module)) => EscModuleReference::External {
+                info,
+                module,
+                types: None,
+            },
+            (None, None) => EscModuleReference::Unresolved { info },
+        }
     }
 
     pub fn file_patterns(&self) -> Result<HashSet<PathBuf>> {
@@ -66,7 +187,8 @@ impl EscResolver {
             return Ok(HashSet::new());
         };
         let tsconfig = self
-            .inner
+            .import
+            .module
             .resolve_tsconfig(config_path)
             .with_context(|| format!("Failed to parse config at {}", config_path.display()))?;
         let dir = tsconfig.directory();
@@ -117,14 +239,6 @@ impl EscResolver {
             .ancestors()
             .map(Self::join_to)
             .find(|candidate| candidate.is_file()))
-    }
-}
-
-impl Deref for EscResolver {
-    type Target = Resolver;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
     }
 }
 
