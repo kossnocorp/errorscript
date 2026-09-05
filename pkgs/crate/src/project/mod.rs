@@ -1,5 +1,8 @@
 use crate::prelude::*;
 
+mod state;
+pub use state::*;
+
 pub type EscProjectLoadingQueue = Arc<tokio::sync::Mutex<Vec<PathBuf>>>;
 
 const PROJECT_EXTS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
@@ -8,6 +11,7 @@ const PROJECT_EXTS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", 
 pub struct EscProject {
     pub config: Option<EscConfig>,
     pub config_ts: Option<EscConfigTs>,
+    pub state: EscProjectState,
 }
 
 impl EscProject {
@@ -27,7 +31,13 @@ impl EscProject {
             .context("TypeScript config task failed")?
             .context("Failed to load TypeScript config")?;
 
-        Ok(Self { config, config_ts })
+        let state = EscProjectState::Resolved;
+
+        Ok(Self {
+            config,
+            config_ts,
+            state,
+        })
     }
 
     pub fn file_patterns(&self) -> HashSet<PathBuf> {
@@ -95,11 +105,11 @@ impl EscProject {
         .context("File resolution task failed")?
     }
 
-    pub async fn load_files(&self) -> Result<HashMap<PathBuf, String>> {
+    pub async fn parse_files(&mut self) -> Result<()> {
         let files: EscProjectLoadingQueue = Arc::new(tokio::sync::Mutex::new(
             self.files().await?.into_iter().collect(),
         ));
-        let mut loaded = HashMap::new();
+        let mut parsed_files = HashMap::new();
         let mut scheduled = HashSet::new();
         let mut tasks = tokio::task::JoinSet::new();
 
@@ -113,33 +123,38 @@ impl EscProject {
             };
 
             for path in pending {
-                tasks.spawn(Self::load_file(path, Arc::clone(&files)));
+                tasks.spawn(Self::parse_file(path.clone(), Arc::clone(&files)));
             }
 
             let Some(file) = tasks.join_next().await else {
                 break;
             };
-            let (path, source_text) = file
+            let (path, file) = file
                 .context("File loading task failed")?
                 .context("Failed to load project file")?;
-            loaded.insert(path, source_text);
+            parsed_files.insert(path, file);
         }
 
-        Ok(loaded)
+        self.state = EscProjectState::Parsed(EscProjectStateParsed { parsed_files });
+
+        Ok(())
     }
 
-    pub async fn load_file(
+    pub async fn parse_file(
         path: PathBuf,
         files: EscProjectLoadingQueue,
-    ) -> Result<(PathBuf, String)> {
+    ) -> Result<(PathBuf, EscParserFile)> {
         let source_code = tokio::fs::read_to_string(&path)
             .await
             .with_context(|| format!("Failed to read project file at {}", path.display()))?;
 
-        // TODO: Parse source_code and extract dependencies and push them into the files queue
+        let file = EscParserFile::parse(source_code, &path)?;
+
+        // TODO: Extract dependencies and push them into the files queue
+
         drop(files);
 
-        Ok((path, source_code))
+        Ok((path, file))
     }
 }
 
@@ -189,6 +204,7 @@ mod tests {
         let project = EscProject {
             config: EscConfig::resolve(Some(&esc_path)).unwrap(),
             config_ts: EscConfigTs::resolve(Some(&ts_path)).unwrap(),
+            state: EscProjectState::Resolved,
         };
 
         let patterns = project.file_patterns();
@@ -217,18 +233,20 @@ mod tests {
         std::fs::write(&explicit_file, "explicit").unwrap();
 
         let path = project_dir.path().to_path_buf();
-        let project = EscProject::resolve(Some(&path)).await.unwrap();
+        let mut project = EscProject::resolve(Some(&path)).await.unwrap();
 
         assert_eq!(
             project.files().await.unwrap(),
             HashSet::from([included_file.clone(), explicit_file.clone()])
         );
-        assert_eq!(
-            project.load_files().await.unwrap(),
-            HashMap::from([
-                (included_file, "included".to_owned()),
-                (explicit_file, "explicit".to_owned()),
-            ])
-        );
+        project.parse_files().await.unwrap();
+        if let EscProjectState::Parsed(state) = &project.state {
+            assert_eq!(
+                state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
+                HashSet::from([included_file, explicit_file])
+            );
+        } else {
+            panic!("Expected parsed state");
+        }
     }
 }

@@ -203,6 +203,7 @@ dependencies = [
  "oxc_span",
  "oxc_syntax",
  "oxc_type_checker",
+ "self_cell",
  "serde",
  "tempfile",
  "tokio",
