@@ -1,4 +1,4 @@
-//! Adapted from vendor/oxc/crates/oxc_type_checker/src/compiler/references.rs,
+//! Adapted from https://github.com/oxc-project/oxc/crates/oxc_type_checker/src/compiler/references.rs,
 //! itself a port of typescript-go's internal/parser/references.go.
 //!
 //! Preserve imports, augmentations and reference pragmas, but collect metadata
