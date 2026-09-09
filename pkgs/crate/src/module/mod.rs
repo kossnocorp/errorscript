@@ -8,9 +8,13 @@ use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use self_cell::self_cell;
 
+mod id;
+pub use id::*;
+
 mod path;
-mod references;
 pub use path::*;
+
+mod references;
 pub use references::*;
 
 #[derive(Debug)]

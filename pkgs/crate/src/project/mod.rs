@@ -9,8 +9,11 @@ mod parse;
 
 mod check;
 
+mod repo;
+
 #[derive(Debug)]
 pub struct EscProject {
+    pub repo_path: EscRepoPath,
     pub config: Option<EscConfig>,
     pub resolver: EscResolver,
     pub state: EscProjectState,
@@ -18,12 +21,14 @@ pub struct EscProject {
 
 impl EscProject {
     pub async fn resolve(path: Option<&PathBuf>) -> Result<Self> {
-        let config_path = path.cloned();
-        let resolver_path = path.cloned();
+        let initial_path = EscPath::try_new(path.map_or(Path::new("."), PathBuf::as_path))
+            .context("Failed to resolve project path")?;
+        let config_path = initial_path.as_path().to_path_buf();
+        let resolver_path = initial_path.as_path().to_path_buf();
 
         let (config, resolver) = tokio::join!(
-            tokio::task::spawn_blocking(move || EscConfig::resolve(config_path.as_ref())),
-            tokio::task::spawn_blocking(move || EscResolver::resolve(resolver_path.as_ref())),
+            tokio::task::spawn_blocking(move || EscConfig::resolve(Some(&config_path))),
+            tokio::task::spawn_blocking(move || EscResolver::resolve(Some(&resolver_path))),
         );
 
         let config = config
@@ -33,13 +38,34 @@ impl EscProject {
             .context("Resolver task failed")?
             .context("Failed to initialize resolver")?;
 
+        let fallback_path = config
+            .as_ref()
+            .map(|config| config.dir().to_path_buf())
+            .or_else(|| {
+                resolver
+                    .config_path()
+                    .and_then(Path::parent)
+                    .map(Path::to_path_buf)
+            });
+        let repo_path = tokio::task::spawn_blocking(move || {
+            let fallback_path = fallback_path.map(EscPath::try_new).transpose()?;
+            Self::resolve_repo_path(&initial_path, fallback_path.as_ref())
+        })
+        .await
+        .context("Repository resolution task failed")??;
+
         let state = EscProjectState::Resolved;
 
         Ok(Self {
+            repo_path,
             config,
             resolver,
             state,
         })
+    }
+
+    pub fn module_id(&self, path: &EscModulePath) -> Result<EscModuleId> {
+        EscModuleId::from_path(path, &self.repo_path)
     }
 }
 
@@ -97,6 +123,7 @@ mod tests {
 
         let resolver = EscResolver::resolve(Some(&ts_path)).unwrap();
         let project = EscProject {
+            repo_path: EscRepoPath::try_new(project_dir.path().to_path_buf()).unwrap(),
             config: EscConfig::resolve(Some(&esc_path)).unwrap(),
             resolver,
             state: EscProjectState::Resolved,
@@ -138,7 +165,7 @@ mod tests {
         if let EscProjectState::Parsed(state) = &project.state {
             assert_eq!(
                 state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
-                module_paths([included_file, explicit_file])
+                module_ids(&project, [included_file, explicit_file])
             );
         } else {
             panic!("Expected parsed state");
@@ -172,7 +199,7 @@ mod tests {
         };
         assert_eq!(
             state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
-            module_paths([entry, middle, leaf])
+            module_ids(&project, [entry, middle, leaf])
         );
     }
 
@@ -232,7 +259,8 @@ mod tests {
         };
         assert_eq!(
             state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
-            module_paths(
+            module_ids(
+                &project,
                 fixtures
                     .iter()
                     .filter(|(file, _)| *file != "types.js")
@@ -243,6 +271,16 @@ mod tests {
             assert!(!module.panicked);
             assert!(module.diagnostics.is_empty(), "{:?}", module.diagnostics);
         }
+    }
+
+    fn module_ids(
+        project: &EscProject,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) -> HashSet<EscModuleId> {
+        module_paths(paths)
+            .iter()
+            .map(|path| project.module_id(path).unwrap())
+            .collect()
     }
 
     fn module_paths(paths: impl IntoIterator<Item = PathBuf>) -> HashSet<EscModulePath> {

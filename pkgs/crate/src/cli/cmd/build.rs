@@ -18,7 +18,7 @@ impl RunAsync for EscCliCmdBuild {
             let mut processed_modules = state
                 .parsed_files
                 .keys()
-                .map(EscModulePath::as_path)
+                .map(EscModuleId::as_str)
                 .collect::<Vec<_>>();
             processed_modules.sort_unstable();
             println!("Processed modules: {processed_modules:#?}");

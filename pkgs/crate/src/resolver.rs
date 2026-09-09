@@ -47,6 +47,10 @@ impl EscResolverMode {
 }
 
 impl EscResolver {
+    pub fn config_path(&self) -> Option<&Path> {
+        self.config_path.as_deref()
+    }
+
     pub fn resolve(path: Option<&PathBuf>) -> Result<Self> {
         let config_path = Self::resolve_path(path)?;
         let alias = |extensions: &[&str]| extensions.iter().map(ToString::to_string).collect();

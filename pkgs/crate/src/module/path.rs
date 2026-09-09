@@ -3,17 +3,15 @@ use crate::prelude::*;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct EscModulePath(PathBuf);
+pub struct EscModulePath(EscPath);
 
 impl EscModulePath {
     pub fn try_new(path: PathBuf) -> Result<Self> {
-        let normalized = std::fs::canonicalize(&path)
-            .with_context(|| format!("Failed to canonicalize module path {}", path.display()))?;
-        Ok(Self(normalized))
+        EscPath::try_new(path).map(Self)
     }
 
     pub fn as_path(&self) -> &Path {
-        &self.0
+        self.0.as_path()
     }
 }
 
@@ -25,7 +23,7 @@ impl AsRef<Path> for EscModulePath {
 
 impl Display for EscModulePath {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{}", self.0.display())
+        Display::fmt(&self.0, formatter)
     }
 }
 

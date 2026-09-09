@@ -34,7 +34,7 @@ impl EscProject {
             let (path, file) = file
                 .context("File loading task failed")?
                 .context("Failed to load project file")?;
-            parsed_files.insert(path, file);
+            parsed_files.insert(self.module_id(&path)?, file);
         }
 
         self.state = EscProjectState::Parsed(EscProjectStateParsed { parsed_files });

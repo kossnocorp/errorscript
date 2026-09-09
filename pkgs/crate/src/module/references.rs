@@ -359,10 +359,9 @@ fn parse_reference_pragma(content: &str) -> Option<(&'static str, &str)> {
         ("path", rest)
     } else if let Some(rest) = rest.strip_prefix("types") {
         ("types", rest)
-    } else if let Some(rest) = rest.strip_prefix("lib") {
-        ("lib", rest)
     } else {
-        return None;
+        let rest = rest.strip_prefix("lib")?;
+        ("lib", rest)
     };
     let rest = rest.trim_start().strip_prefix('=')?.trim_start();
     let quote = rest.chars().next().filter(|&c| c == '"' || c == '\'')?;
