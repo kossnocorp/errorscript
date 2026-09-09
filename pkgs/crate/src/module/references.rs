@@ -391,9 +391,7 @@ mod tests {
         let resolver = EscResolver::resolve(Some(&dir.path().to_path_buf())).unwrap();
         let module =
             EscModule::parse(std::fs::read_to_string(&path).unwrap(), &path, &resolver).unwrap();
-        module.with_parsed(|parsed| {
-            assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics)
-        });
+        assert!(module.diagnostics.is_empty(), "{:?}", module.diagnostics);
         module
     }
 

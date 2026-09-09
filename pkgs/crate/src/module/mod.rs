@@ -1,7 +1,9 @@
 use crate::prelude::*;
 
 use oxc_allocator::Allocator;
-use oxc_parser::{Parser, ParserReturn};
+use oxc_ast::ast::Program;
+use oxc_diagnostics::Diagnostics;
+use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use self_cell::self_cell;
@@ -13,8 +15,10 @@ pub use references::*;
 
 #[derive(Debug)]
 pub struct EscModule {
-    cell: EscModuleSemanticCell,
+    cell: EscModuleCell,
     pub references: EscModuleReferences,
+    pub diagnostics: Diagnostics,
+    pub panicked: bool,
 }
 
 self_cell! {
@@ -27,17 +31,15 @@ self_cell! {
     impl {Debug}
 }
 
-// NOTE: The self cell owns the allocator and source code together with parser
-// return, which only borrows from that owner. No borrow escapes the cell.
+// SAFETY: The cell owns the allocator and source text. Program is allocated in
+// that arena, and the dependent only holds references into the owner. Moving the
+// module transfers exclusive ownership of the entire arena and its dependents.
 //
-// To make it safe, we must ensure:
-//
-// - Send is never implemented for EscModule.
+// - Sync must never be implemented for EscModule.
 // - EscModuleCell, EscModuleOwner, EscModuleAllocator, EscModuleData,
-//   EscModuleSemanticCell, EscModuleSemanticData, allocator, source_code, parsed and
-//   semantic are all private.
-// - Never return ParserReturn and SemanticBuilderReturn, only access via with_parsed and
-//   with_semantic closures.
+//   allocator, source_code, program and semantic remain private.
+// - Arena-backed data is only accessed through with_program and with_semantic
+//   closures, which prevent borrowed data from escaping the cell.
 unsafe impl Send for EscModule {}
 
 #[derive(Debug)]
@@ -55,7 +57,8 @@ impl Debug for EscModuleAllocator {
 }
 
 struct EscModuleData<'a> {
-    parsed: ParserReturn<'a>,
+    program: &'a Program<'a>,
+    semantic: SemanticBuilderReturn<'a>,
 }
 
 impl Debug for EscModuleData<'_> {
@@ -64,26 +67,6 @@ impl Debug for EscModuleData<'_> {
     }
 }
 
-self_cell! {
-    // NOTE: EscModuleSemantic must be private,
-    struct EscModuleSemanticCell {
-        owner: EscModuleCell,
-        #[covariant]
-        dependent: EscModuleSemanticData,
-    }
-
-    impl {Debug}
-}
-
-struct EscModuleSemanticData<'a> {
-    semantic: SemanticBuilderReturn<'a>,
-}
-
-impl Debug for EscModuleSemanticData<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EscModuleSemanticData")
-    }
-}
 impl EscModule {
     pub fn parse(
         source_code: String,
@@ -96,44 +79,39 @@ impl EscModule {
         };
 
         let source_type = SourceType::from_path(path).context("Failed to determine source type")?;
-        let file_cell = EscModuleCell::new(owner, |owner| {
+        let mut metadata = None;
+        let cell = EscModuleCell::new(owner, |owner| {
             let parsed = Parser::new(&owner.allocator.0, &owner.source_code, source_type).parse();
-
-            EscModuleData { parsed }
-        });
-
-        let references = file_cell.with_dependent(|_, data| {
-            EscModuleReferences::collect(
-                &data.parsed.program,
-                &data.parsed.module_record,
+            let references = EscModuleReferences::collect(
+                &parsed.program,
+                &parsed.module_record,
                 path,
                 resolver,
-            )
-        });
+            );
+            metadata = Some((references, parsed.diagnostics, parsed.panicked));
 
-        let semantic_cell = EscModuleSemanticCell::new(file_cell, |file_cell| {
-            let parsed = &file_cell.with_dependent(|_, data| &data.parsed);
-
+            // Both dependents borrow the owner, rather than one borrowing the other.
+            let program: &Program<'_> = owner.allocator.0.alloc(parsed.program);
             let semantic = SemanticBuilder::new_compiler()
                 .with_build_nodes(true)
-                .build(&parsed.program);
+                .build(program);
 
-            EscModuleSemanticData { semantic }
+            EscModuleData { program, semantic }
         });
+        let (references, diagnostics, panicked) =
+            metadata.expect("module metadata collected during parsing");
 
         let file = EscModule {
-            cell: semantic_cell,
+            cell,
             references,
+            diagnostics,
+            panicked,
         };
         Ok(file)
     }
 
-    pub fn with_parsed<Return>(
-        &self,
-        f: impl for<'a> FnOnce(&ParserReturn<'a>) -> Return,
-    ) -> Return {
-        self.cell
-            .with_dependent(|file_cell, _| file_cell.with_dependent(|_, data| f(&data.parsed)))
+    pub fn with_program<Return>(&self, f: impl for<'a> FnOnce(&Program<'a>) -> Return) -> Return {
+        self.cell.with_dependent(|_, data| f(data.program))
     }
 
     pub fn with_semantic<Return>(

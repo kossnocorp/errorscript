@@ -15,6 +15,9 @@ pub use resolver::*;
 mod project;
 pub use project::*;
 
+mod checker;
+pub use checker::*;
+
 #[tokio::main]
 async fn main() {
     EscCli::main().await;

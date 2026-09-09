@@ -3,7 +3,11 @@ use crate::prelude::*;
 mod state;
 pub use state::*;
 
-pub type EscProjectLoadingQueue = Arc<tokio::sync::Mutex<Vec<EscModulePath>>>;
+mod file;
+
+mod parse;
+
+mod check;
 
 #[derive(Debug)]
 pub struct EscProject {
@@ -36,113 +40,6 @@ impl EscProject {
             resolver,
             state,
         })
-    }
-
-    pub fn file_patterns(&self) -> Result<HashSet<PathBuf>> {
-        if let Some(config) = &self.config
-            && let Some(files) = &config.manifest.files
-        {
-            return Ok(files
-                .iter()
-                .map(|pattern| config.dir().join(pattern))
-                .collect());
-        }
-
-        self.resolver.file_patterns()
-    }
-
-    pub async fn files(&self) -> Result<HashSet<EscModulePath>> {
-        let patterns = self.file_patterns()?;
-
-        tokio::task::spawn_blocking(move || {
-            let mut files = HashSet::new();
-
-            for pattern in patterns {
-                let pattern = pattern.to_str().with_context(|| {
-                    format!("File pattern is not valid UTF-8: {}", pattern.display())
-                })?;
-                let entries = glob::glob(pattern)
-                    .with_context(|| format!("Invalid file pattern: {pattern}"))?;
-
-                for entry in entries {
-                    let path = entry
-                        .with_context(|| format!("Failed to resolve file pattern: {pattern}"))?;
-                    if path.is_file()
-                        && oxc_span::VALID_EXTENSIONS
-                            .iter()
-                            .any(|ext| path.extension().is_some_and(|e| e == *ext))
-                    {
-                        files.insert(EscModulePath::try_new(path)?);
-                    }
-                }
-            }
-
-            Ok(files)
-        })
-        .await
-        .context("File resolution task failed")?
-    }
-
-    pub async fn parse_files(&mut self) -> Result<()> {
-        let files: EscProjectLoadingQueue = Arc::new(tokio::sync::Mutex::new(
-            self.files().await?.into_iter().collect(),
-        ));
-        let mut parsed_files = HashMap::new();
-        let mut scheduled = HashSet::new();
-        let mut tasks = tokio::task::JoinSet::new();
-        let resolver = self.resolver.clone();
-
-        loop {
-            let pending = {
-                let mut files = files.lock().await;
-                files
-                    .drain(..)
-                    .filter(|path| scheduled.insert(path.clone()))
-                    .collect::<Vec<_>>()
-            };
-
-            for path in pending {
-                let path = path.clone();
-                let files = Arc::clone(&files);
-                let resolver = resolver.clone();
-                tasks.spawn(Self::parse_file(path, files, resolver));
-            }
-
-            let Some(file) = tasks.join_next().await else {
-                break;
-            };
-            let (path, file) = file
-                .context("File loading task failed")?
-                .context("Failed to load project file")?;
-            parsed_files.insert(path, file);
-        }
-
-        let mut processed_modules = parsed_files
-            .keys()
-            .map(EscModulePath::as_path)
-            .collect::<Vec<_>>();
-        processed_modules.sort_unstable();
-        println!("Processed modules: {processed_modules:#?}");
-        self.state = EscProjectState::Parsed(EscProjectStateParsed { parsed_files });
-
-        Ok(())
-    }
-
-    pub async fn parse_file(
-        path: EscModulePath,
-        files: EscProjectLoadingQueue,
-        resolver: EscResolver,
-    ) -> Result<(EscModulePath, EscModule)> {
-        let source_code = tokio::fs::read_to_string(&path)
-            .await
-            .with_context(|| format!("Failed to read project file at {path}"))?;
-
-        let file = EscModule::parse(source_code, &path, &resolver)?;
-
-        let dependencies = file.extract_dependencies();
-        files.lock().await.extend(dependencies);
-
-        Ok((path, file))
     }
 }
 
@@ -343,10 +240,8 @@ mod tests {
             )
         );
         for module in state.parsed_files.values() {
-            module.with_parsed(|parsed| {
-                assert!(!parsed.panicked);
-                assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-            });
+            assert!(!module.panicked);
+            assert!(module.diagnostics.is_empty(), "{:?}", module.diagnostics);
         }
     }
 

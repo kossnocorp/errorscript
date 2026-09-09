@@ -11,9 +11,21 @@ impl RunAsync for EscCliCmdBuild {
 
     async fn run_async(self) -> Self::Output {
         let mut project = EscProject::resolve(self.project_args.project.as_ref()).await?;
+
         project.parse_files().await?;
-        // let files = project.files().await?;
-        // println!("Files: {:?}", files);
+
+        if let EscProjectState::Parsed(state) = &project.state {
+            let mut processed_modules = state
+                .parsed_files
+                .keys()
+                .map(EscModulePath::as_path)
+                .collect::<Vec<_>>();
+            processed_modules.sort_unstable();
+            println!("Processed modules: {processed_modules:#?}");
+        }
+
+        project.check_files().await?;
+
         Ok(())
     }
 }
