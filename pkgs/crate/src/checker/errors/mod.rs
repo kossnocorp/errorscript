@@ -9,6 +9,7 @@ use oxc_semantic::Semantic;
 use oxc_syntax::{node::NodeId, symbol::SymbolId};
 use std::cell::RefCell;
 
+mod arguments;
 mod expression;
 mod statement;
 #[cfg(test)]
@@ -48,6 +49,9 @@ impl Value {
         Self::types(HashSet::from([EscErrorType::UNKNOWN]))
     }
     fn global(global: &EscGlobal) -> Self {
+        if !matches!(global.value_type, "Function" | "object") {
+            return Self::builtin(global.value_type);
+        }
         Self {
             globals: HashSet::from([global.path]),
             nonglobal: false,
@@ -183,11 +187,13 @@ pub(crate) fn resolve_errors(
         .iter()
         .map(|call| ((call.site.module_id.clone(), call.site.node_id), call))
         .collect::<HashMap<_, _>>();
+    let arguments = arguments::Arguments::new(parsed, graph);
 
     // The outer worklist also covers value dependencies through captured/global
     // initializers, which are not necessarily edges in the direct call graph.
     loop {
         let mut changed = false;
+        let previous_arguments = arguments.snapshot();
         for component in &graph.sccs {
             loop {
                 let mut component_changed = false;
@@ -202,8 +208,9 @@ pub(crate) fn resolve_errors(
                             calls: &calls,
                             summaries: &summaries,
                             reading: RefCell::new(HashSet::new()),
+                            arguments: &arguments,
                         }
-                        .function(function)
+                        .function(function, id)
                     });
                     let summary = summaries.get_mut(id).unwrap();
                     let previous = summary.clone();
@@ -216,7 +223,7 @@ pub(crate) fn resolve_errors(
                 }
             }
         }
-        if !changed {
+        if !changed && arguments.snapshot() == previous_arguments {
             break;
         }
     }
@@ -234,10 +241,16 @@ struct Analyzer<'s, 'a> {
     calls: &'s HashMap<(EscModuleId, NodeId), &'s EscCall>,
     summaries: &'s HashMap<EscFnId, Summary>,
     reading: RefCell<HashSet<SymbolId>>,
+    arguments: &'s arguments::Arguments,
 }
 
 impl Analyzer<'_, '_> {
-    fn function(&self, function: &EscFunction) -> Summary {
+    fn function(&self, function: &EscFunction, id: &EscFnId) -> Summary {
+        let incoming = match self.arguments.parameters(id) {
+            Some(None) => return Summary::default(),
+            Some(Some(values)) => Some(values),
+            None => None,
+        };
         let (params, body, expression) = match self.semantic.nodes().kind(function.node_id) {
             AstKind::Function(f) => (
                 &f.params,
@@ -253,20 +266,33 @@ impl Analyzer<'_, '_> {
             _ => unreachable!(),
         };
         let mut flow = Flow::normal(Env::new(), Value::undefined());
-        for param in &params.items {
+        let declared = self.declared_parameters(id, params.items.len());
+        for (index, param) in params.items.iter().enumerate() {
             flow = flow.then(|state| {
-                let mut value = param
-                    .type_annotation
-                    .as_ref()
-                    .map_or_else(Value::unknown, |annotation| {
-                        self.annotation(&annotation.type_annotation)
-                    });
+                let mut value = param.type_annotation.as_ref().map_or_else(
+                    || {
+                        declared
+                            .as_ref()
+                            .or(incoming.as_ref())
+                            .map_or_else(Value::unknown, |values| values[index].clone())
+                    },
+                    |annotation| self.annotation(&annotation.type_annotation),
+                );
                 if param.optional {
                     value.join(Value::undefined());
                 }
-                let mut values = Flow::normal(state.env.clone(), value);
+                let mut values = Flow::default();
                 if let Some(initializer) = &param.initializer {
-                    values.join(self.expr(initializer, state.env));
+                    let defaulted = value.types.remove(&EscErrorType::builtin("undefined"))
+                        || value.types.contains(&EscErrorType::UNKNOWN);
+                    if !value.types.is_empty() {
+                        values.join(Flow::normal(state.env.clone(), value));
+                    }
+                    if defaulted {
+                        values.join(self.expr(initializer, state.env));
+                    }
+                } else {
+                    values = Flow::normal(state.env, value);
                 }
                 values.then(|state| self.bind(&param.pattern, state.env, state.value))
             });
@@ -321,19 +347,45 @@ impl Analyzer<'_, '_> {
             .and_then(|id| self.semantic.scoping().get_reference(id).symbol_id())
     }
 
+    fn captured_mutation(&self, symbol: SymbolId) -> bool {
+        let owner = |mut node| loop {
+            match self.semantic.nodes().kind(node) {
+                AstKind::Function(_)
+                | AstKind::ArrowFunctionExpression(_)
+                | AstKind::Program(_) => break node,
+                _ => node = self.semantic.nodes().parent_id(node),
+            }
+        };
+        let declaration_owner = owner(self.semantic.scoping().symbol_declaration(symbol));
+        self.semantic
+            .scoping()
+            .get_resolved_references(symbol)
+            .any(|reference| {
+                reference.is_write() && owner(reference.node_id()) != declaration_owner
+            })
+    }
+
     fn read(&self, id: &IdentifierReference<'_>, env: Env) -> Flow {
         let Some(symbol) = self.symbol(id) else {
             if let Some(global) = self.graph.global(id.name.as_str()) {
                 return Flow::normal(env.clone(), Value::global(global))
                     .possible_throw(&env, global.read_errors.iter().cloned().collect());
             }
-            return Flow::normal(
-                env,
-                if id.name == "undefined" {
-                    Value::undefined()
-                } else {
-                    Value::unknown()
-                },
+            if id.name == "undefined" {
+                return Flow::normal(env, Value::undefined());
+            }
+            if matches!(id.name.as_str(), "NaN" | "Infinity") {
+                return Flow::normal(env, Value::builtin("number"));
+            }
+            // An unresolved reference may be supplied by the host, but if it
+            // isn't present, evaluating it throws before any coercion or call.
+            let flow = Flow::normal(env.clone(), Value::unknown());
+            if EscGlobals::get(id.name.as_str()).is_some() {
+                return flow;
+            }
+            return flow.possible_throw(
+                &env,
+                HashSet::from([EscErrorType::builtin("ReferenceError")]),
             );
         };
         if let Some(value) = env.get(&symbol).cloned() {

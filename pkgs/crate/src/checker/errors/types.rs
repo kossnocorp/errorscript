@@ -1,6 +1,52 @@
 use super::*;
 
 impl Analyzer<'_, '_> {
+    pub(super) fn declared_parameters(&self, id: &EscFnId, count: usize) -> Option<Vec<Value>> {
+        let signatures = self
+            .graph
+            .signatures
+            .get(id)
+            .filter(|signatures| !signatures.is_empty())?;
+        let mut values = vec![Value::default(); count];
+        for signature in signatures {
+            self.modules[&signature.module_id].with_semantic(|result| {
+                let AstKind::Function(function) = result.semantic.nodes().kind(signature.node)
+                else {
+                    return;
+                };
+                for (index, value) in values.iter_mut().enumerate() {
+                    let parameter = function.params.items.get(index);
+                    let mut declared = parameter.map_or_else(
+                        || {
+                            if function.params.rest.is_some() {
+                                Value::unknown()
+                            } else {
+                                Value::undefined()
+                            }
+                        },
+                        |parameter| {
+                            parameter.type_annotation.as_ref().map_or_else(
+                                Value::unknown,
+                                |annotation| {
+                                    self.annotation_at(
+                                        &signature.module_id,
+                                        &result.semantic,
+                                        &annotation.type_annotation,
+                                        &mut HashSet::new(),
+                                    )
+                                },
+                            )
+                        },
+                    );
+                    if parameter.is_some_and(|parameter| parameter.optional) {
+                        declared.join(Value::undefined());
+                    }
+                    value.join(declared);
+                }
+            });
+        }
+        Some(values)
+    }
     pub(super) fn annotation(&self, ty: &TSType<'_>) -> Value {
         self.annotation_at(self.module, self.semantic, ty, &mut HashSet::new())
     }

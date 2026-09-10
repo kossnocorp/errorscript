@@ -57,6 +57,8 @@ pub struct EscCall {
 
 #[derive(Debug, Default)]
 pub struct EscCallGraph {
+    /// Declaration signatures linked through paired runtime/type module exports.
+    pub(crate) signatures: HashMap<EscFnId, Vec<EscErrorId>>,
     /// Caller -> possible callee. Parallel edges retain distinct call sites.
     pub graph: DiGraph<EscFunction, EscCallSite>,
     pub calls: Vec<EscCall>,

@@ -54,9 +54,23 @@ impl Analyzer<'_, '_> {
             }),
             Expression::AssignmentExpression(assignment) => {
                 self.target_effects(&assignment.left, env).then(|state| {
+                    let left = if let AssignmentTarget::AssignmentTargetIdentifier(id) = &assignment.left {
+                        self.symbol(id).and_then(|symbol| state.env.get(&symbol)).cloned().unwrap_or_else(Value::unknown)
+                    } else { Value::unknown() };
                     self.expr(&assignment.right, state.env).then(|state| {
-                        let value = if assignment.operator.as_str() == "=" { state.value } else { Value::unknown() };
-                        self.assign(&assignment.left, state.env, value)
+                        let operator = assignment.operator.as_str();
+                        if operator == "=" { return self.assign(&assignment.left, state.env, state.value); }
+                        if matches!(operator, "&&=" | "||=" | "??=") {
+                            return self.assign(&assignment.left, state.env, Value::unknown());
+                        }
+                        let safe = left.plain_primitive() && state.value.plain_primitive();
+                        let mut value = Value::builtin("number");
+                        if operator == "+=" && (left.types.contains(&EscErrorType::builtin("string")) || state.value.types.contains(&EscErrorType::builtin("string")) || !safe) {
+                            value.join(Value::builtin("string"));
+                        }
+                        let env = state.env.clone();
+                        let flow = self.assign(&assignment.left, state.env, value);
+                        if safe { flow } else { flow.possible_throw(&env, HashSet::from([EscErrorType::UNKNOWN])) }
                     })
                 })
             }
@@ -71,6 +85,9 @@ impl Analyzer<'_, '_> {
                     })
                 } else { self.unknown(env) }
             }
+            Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::Typeof
+                && matches!(unary.argument.get_inner_expression(), Expression::Identifier(id) if self.symbol(id).is_none())
+                => Flow::normal(env, Value::builtin("string")),
             Expression::UnaryExpression(unary) => self.expr(&unary.argument, env).then(|state| {
                 let value = match unary.operator {
                     UnaryOperator::LogicalNot => Value { truth: ((state.value.truth & 1) << 1) | ((state.value.truth & 2) >> 1), ..Value::builtin("boolean") },
@@ -212,6 +229,7 @@ impl Analyzer<'_, '_> {
             }
             Flow::normal(state.env, state.value)
         });
+        let mut argument_values = Vec::new();
         for (index, argument) in arguments.iter().enumerate() {
             flow = if let Argument::SpreadElement(spread) = argument {
                 flow.then(|state| self.expr(&spread.argument, state.env))
@@ -222,6 +240,7 @@ impl Analyzer<'_, '_> {
                 flow.then(|state| self.unknown(state.env))
             };
             flow = flow.then(|state| {
+                argument_values.push(state.value.clone());
                 for model in &models {
                     for rule in model.arguments {
                         if rule.index.is_none_or(|position| position == index)
@@ -233,6 +252,15 @@ impl Analyzer<'_, '_> {
             });
         }
         flow = flow.then(|state| {
+            if let Some(call) = call {
+                self.arguments.record(
+                    call,
+                    &argument_values,
+                    arguments
+                        .iter()
+                        .any(|argument| matches!(argument, Argument::SpreadElement(_))),
+                );
+            }
             if !global_targets.is_empty() {
                 let mut result = Flow::default();
                 for path in &global_targets {
@@ -307,7 +335,7 @@ impl Analyzer<'_, '_> {
         // Widen potentially mutated values instead of preserving stale types.
         if call.unresolved || !call.targets.is_empty() {
             for (symbol, value) in &mut env {
-                if self.semantic.scoping().symbol_is_mutated(*symbol) {
+                if self.captured_mutation(*symbol) {
                     value.join(Value::unknown());
                 }
             }
@@ -441,6 +469,18 @@ impl Analyzer<'_, '_> {
             };
             flow.then(|state| {
                 let Some(name) = member.static_property_name() else {
+                    if !state.value.types.is_empty()
+                        && state
+                            .value
+                            .types
+                            .iter()
+                            .all(|ty| *ty == EscErrorType::builtin("number"))
+                    {
+                        let (mut value, errors) = self.property(&object.value, "[index]");
+                        value.join(Value::undefined());
+                        return Flow::normal(state.env.clone(), value)
+                            .possible_throw(&state.env, errors);
+                    }
                     return self.unknown(state.env);
                 };
                 let (value, errors) = self.property(&object.value, name);

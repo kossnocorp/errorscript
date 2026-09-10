@@ -77,6 +77,30 @@ const fn object(path: &'static str) -> EscGlobal {
     }
 }
 
+const fn property(path: &'static str, value_type: &'static str) -> EscGlobal {
+    EscGlobal {
+        value_type,
+        ..object(path)
+    }
+}
+
+const fn constructor(path: &'static str) -> EscGlobal {
+    EscGlobal {
+        path,
+        value_type: "Function",
+        read_errors: &[],
+        call: None,
+        construct: Some(EscGlobalCall {
+            returns: path,
+            errors: VIEW_ERRORS,
+            arguments: FORMAT_ARGUMENTS,
+            min_arguments: 0,
+            missing_arguments_errors: &[],
+        }),
+        instance_type: Some(path),
+    }
+}
+
 const fn function(
     path: &'static str,
     returns: &'static str,
@@ -124,6 +148,14 @@ const fn error(
 // Add global/property paths here; resolver and analyzer logic is independent of
 // the names. A property can have read errors even when it isn't callable.
 pub(super) static GLOBALS: &[EscGlobal] = &[
+    constructor("Uint8Array"),
+    constructor("ArrayBuffer"),
+    constructor("SharedArrayBuffer"),
+    property("Uint8Array.prototype.length", "number"),
+    property("Uint8Array.prototype.byteLength", "number"),
+    property("Uint8Array.prototype.byteOffset", "number"),
+    property("Uint8Array.prototype.buffer", "ArrayBuffer"),
+    property("Uint8Array.prototype.[index]", "number"),
     EscGlobal {
         path: "DataView",
         value_type: "Function",

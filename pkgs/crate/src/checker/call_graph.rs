@@ -17,6 +17,7 @@ type ExportKey = (EscModuleId, String);
 
 #[derive(Clone, Debug)]
 enum Value {
+    Signature(EscErrorId),
     Function(NodeIndex),
     Type(EscErrorType),
     TypeOnly(Box<Value>),
@@ -43,6 +44,8 @@ struct PendingCall {
 
 #[derive(Default)]
 struct Builder {
+    module_pairs: HashSet<(EscModuleId, EscModuleId)>,
+    sources: HashMap<(EscModuleId, Span), EscModuleId>,
     result: EscCallGraph,
     functions: HashMap<(EscModuleId, NodeId), NodeIndex>,
     bindings: HashMap<SymbolKey, Value>,
@@ -62,6 +65,7 @@ struct ClassInfo {
 
 #[derive(Default)]
 struct Targets {
+    signatures: HashSet<EscErrorId>,
     functions: BTreeSet<NodeIndex>,
     namespaces: BTreeSet<EscModuleId>,
     unknown: bool,
@@ -72,6 +76,7 @@ struct Targets {
 
 impl Targets {
     fn merge(&mut self, other: Self) {
+        self.signatures.extend(other.signatures);
         self.functions.extend(other.functions);
         self.namespaces.extend(other.namespaces);
         self.unknown |= other.unknown;
@@ -136,6 +141,12 @@ impl EscCallGraph {
                     types,
                 } = reference
                 {
+                    if let Some(types) = types {
+                        builder.module_pairs.insert((
+                            EscModuleId::from_path(module, repo)?,
+                            EscModuleId::from_path(types, repo)?,
+                        ));
+                    }
                     let module = if info.type_only {
                         types.as_ref().unwrap_or(module)
                     } else {
@@ -148,6 +159,11 @@ impl EscCallGraph {
                 }
             }
             module.with_semantic(|result| {
+                builder.sources.extend(
+                    sources
+                        .iter()
+                        .map(|(span, source)| ((module_id.clone(), *span), source.clone())),
+                );
                 builder.collect(module_id, &result.semantic, &sources);
             });
         }
@@ -191,6 +207,22 @@ impl Builder {
     ) -> Value {
         let expr = expr.get_inner_expression();
         match expr {
+            Expression::CallExpression(call)
+                if matches!(call.callee.get_inner_expression(), Expression::Identifier(id)
+                if id.name == "require" && id.reference_id.get().is_some_and(|id| semantic.scoping().get_reference(id).symbol_id().is_none())) =>
+            {
+                call.arguments
+                    .first()
+                    .and_then(|argument| argument.as_expression())
+                    .and_then(|argument| {
+                        if let Expression::StringLiteral(source) = argument {
+                            self.sources.get(&(module.clone(), source.span)).cloned()
+                        } else {
+                            None
+                        }
+                    })
+                    .map_or(Value::Unknown, Value::Namespace)
+            }
             Expression::Identifier(id) => self.identifier(module, semantic, id),
             Expression::FunctionExpression(function) => {
                 self.function(module, function.node_id.get())
@@ -326,7 +358,23 @@ impl Builder {
                 }
                 AstKind::Function(function) => {
                     if let Some(id) = &function.id {
-                        self.bind(module, id, self.function(module, node.id()));
+                        let value = if function.body.is_none() {
+                            Value::Signature(EscErrorId {
+                                module_id: module.clone(),
+                                node: node.id(),
+                            })
+                        } else {
+                            self.function(module, node.id())
+                        };
+                        let key = id.symbol_id.get().map(|symbol| (module.clone(), symbol));
+                        if function.body.is_none()
+                            && let Some(previous) =
+                                key.and_then(|key| self.bindings.get(&key)).cloned()
+                        {
+                            self.bind(module, id, Value::Union(vec![previous, value]));
+                        } else {
+                            self.bind(module, id, value);
+                        }
                     }
                 }
                 AstKind::VariableDeclarator(declaration) => {
@@ -520,6 +568,18 @@ impl Builder {
         for node in semantic.nodes().iter() {
             if let AstKind::AssignmentExpression(assignment) = node.kind() {
                 if let Some(member) = assignment.left.as_member_expression() {
+                    if let Expression::Identifier(object) = member.object().get_inner_expression()
+                        && object.name == "exports"
+                        && object.reference_id.get().is_some_and(|id| {
+                            semantic.scoping().get_reference(id).symbol_id().is_none()
+                        })
+                        && let Some(name) = member.static_property_name()
+                    {
+                        self.exports.insert(
+                            (module.clone(), name.to_owned()),
+                            self.expression(module, semantic, &assignment.right),
+                        );
+                    }
                     let value = self.expression(module, semantic, member.object());
                     for path in self.resolve(&value, &mut HashSet::new()).globals {
                         self.modified_globals
@@ -614,6 +674,10 @@ impl Builder {
     fn resolve(&self, value: &Value, visiting: &mut HashSet<Lookup>) -> Targets {
         let mut result = Targets::default();
         match value {
+            Value::Signature(signature) => {
+                result.signatures.insert(signature.clone());
+                result.unknown = true;
+            }
             Value::Unknown => result.unknown = true,
             Value::Function(index) => {
                 result.functions.insert(*index);
@@ -711,6 +775,37 @@ impl Builder {
     }
 
     fn finish(&mut self) {
+        // Export names, rather than declaration-local names or filenames,
+        // connect signatures across aliases and re-export barrels.
+        let names = self
+            .exports
+            .keys()
+            .map(|(_, name)| name.clone())
+            .collect::<HashSet<_>>();
+        for (runtime, types) in &self.module_pairs {
+            if runtime == types {
+                continue;
+            }
+            for name in &names {
+                let implementation = self.resolve(
+                    &Value::Export((runtime.clone(), name.clone())),
+                    &mut HashSet::new(),
+                );
+                let declaration = self.resolve(
+                    &Value::Export((types.clone(), name.clone())),
+                    &mut HashSet::new(),
+                );
+                for function in implementation.functions {
+                    let signatures = self.result.signatures.entry(self.id(function)).or_default();
+                    for signature in &declaration.signatures {
+                        if !signatures.contains(signature) {
+                            signatures.push(signature.clone());
+                        }
+                    }
+                    signatures.sort();
+                }
+            }
+        }
         self.result.modified_globals = self.modified_globals.clone();
         for (ty, class) in &self.classes {
             let mut bases = HashSet::new();

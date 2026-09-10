@@ -50,6 +50,137 @@ fn builtins(names: &[&'static str]) -> Types {
 }
 
 #[tokio::test]
+async fn applies_paired_declarations_to_esm_and_cjs_implementations() {
+    let (_dir, project) = checked(&[
+        ("entry.ts", "import { hash } from 'paired'; const cjs = require('paired'); export function call(input: Uint8Array) { return hash(input); }"),
+        ("node_modules/paired/package.json", r#"{"name":"paired","type":"module","exports":{"import":{"types":"./types/index.d.ts","default":"./esm/index.js"},"require":{"types":"./types/index.d.cts","default":"./cjs/index.cjs"}}}"#),
+        ("node_modules/paired/esm/index.js", "export { implementation as hash } from './body.js';"),
+        ("node_modules/paired/esm/body.js", "export function implementation(bytes, salt = 0) { const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); const length = bytes.length; return view.getUint32(0) + salt + bytes[length - 1]; } export function unrelated(value) { return value >>> 0; }"),
+        ("node_modules/paired/cjs/index.cjs", "const body = require('./body.cjs'); exports.hash = body.implementation;"),
+        ("node_modules/paired/cjs/body.cjs", "function implementation(bytes, salt = 0) { const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); return view.getUint32(0) + salt + bytes[0]; } exports.implementation = implementation;"),
+        ("node_modules/paired/types/index.d.ts", "export { signature as hash } from './body.js';"),
+        ("node_modules/paired/types/body.d.ts", "export declare function signature(input: Uint8Array, seed?: number): number;"),
+        ("node_modules/paired/types/index.d.cts", "export { signature as hash } from './body.cjs';"),
+        ("node_modules/paired/types/body.d.cts", "export declare function signature(input: Uint8Array, seed?: number): number;"),
+    ]).await;
+    for module in [
+        "node_modules/paired/esm/body.js",
+        "node_modules/paired/cjs/body.cjs",
+    ] {
+        assert_eq!(
+            errors(&project, module, "implementation"),
+            builtins(&["RangeError", "TypeError"]),
+            "{module}"
+        );
+    }
+    assert_eq!(
+        errors(&project, "entry.ts", "call"),
+        builtins(&["RangeError", "TypeError"])
+    );
+    assert_eq!(
+        errors(&project, "node_modules/paired/esm/body.js", "unrelated"),
+        builtins(&["unknown"])
+    );
+}
+
+#[tokio::test]
+async fn declaration_types_use_the_declaration_module_and_union_overloads() {
+    let (_dir, project) = checked(&[
+        ("entry.ts", "import { read, overloaded } from 'paired'; export function entry() { return read(1); }"),
+        ("node_modules/paired/package.json", r#"{"name":"paired","type":"module","main":"index.js","types":"index.d.ts"}"#),
+        ("node_modules/paired/index.js", "export function read(value = 1) { throw value; } export function overloaded(value) { throw value; }"),
+        ("node_modules/paired/index.d.ts", "import type { Numeric } from './types.js'; export declare function read(input?: Numeric): never; export declare function overloaded(input: number): never; export declare function overloaded(input: string): never;"),
+        ("node_modules/paired/types.d.ts", "export type Numeric = number;"),
+    ]).await;
+    assert_eq!(
+        errors(&project, "node_modules/paired/index.js", "read"),
+        builtins(&["number"])
+    );
+    assert_eq!(
+        errors(&project, "node_modules/paired/index.js", "overloaded"),
+        builtins(&["number", "string"])
+    );
+}
+
+#[tokio::test]
+async fn infers_local_arguments_and_preserves_open_world_calls() {
+    let (_dir, project) = checked(&[("entry.ts", r#"
+        const prime = 2246822519;
+        export function entry(n: number) { return mix(n >>> 0); }
+        function mix(hash) { hash ^= hash >>> 15; hash = Math.imul(hash, prime) >>> 0; return rotate(hash, 13); }
+        function rotate(value, shift) { return (value << shift) | (value >>> (32 - shift)); }
+        export function another() { return mix(123); }
+        export function unknownEntry(value: unknown) { return uncertain(value); }
+        function uncertain(value) { return value >>> 0; }
+        export function escaped(value) { return value >>> 0; }
+        export const callback = saved;
+        function saved(value) { return value >>> 0; }
+        export function numericSaved() { return saved(1); }
+        export function recurEntry(n: number) { return recur(n); }
+        function recur(n) { if (n <= 0) return 0; return recur(n - 1); }
+        export function omitted() { return defaults(); }
+        function defaults(n = 1) { return n >>> 0; }
+        export function mixedEntry(value: unknown) { both(1); return both(value); }
+        function both(n) { return n >>> 0; }
+    "#)]).await;
+    for name in [
+        "entry",
+        "mix",
+        "rotate",
+        "another",
+        "recur",
+        "recurEntry",
+        "defaults",
+        "omitted",
+    ] {
+        assert!(errors(&project, "entry.ts", name).is_empty(), "{name}");
+    }
+    for name in [
+        "unknownEntry",
+        "uncertain",
+        "escaped",
+        "saved",
+        "numericSaved",
+        "mixedEntry",
+        "both",
+    ] {
+        assert!(
+            errors(&project, "entry.ts", name).contains(&EscErrorType::UNKNOWN),
+            "{name}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn distinguishes_unresolved_names_from_undefined_values() {
+    let (_dir, project) = checked(&[(
+        "entry.ts",
+        r#"
+        const prime = 2246822519;
+        const absentValue = undefined;
+        function known() { return Math.imul(1, prime); }
+        function undefinedValue() { return Math.imul(1, absentValue); }
+        function missing() { return xxh32PrimeMissing; }
+        function missingCoercion() { return Math.imul(1, xxh32PrimeMissing); }
+        function probe() { return typeof xxh32PrimeMissing; }
+        function caught() { try { return xxh32PrimeMissing; } catch {} }
+    "#,
+    )])
+    .await;
+    for name in ["known", "undefinedValue", "probe", "caught"] {
+        assert!(errors(&project, "entry.ts", name).is_empty(), "{name}");
+    }
+    assert_eq!(
+        errors(&project, "entry.ts", "missing"),
+        builtins(&["ReferenceError"])
+    );
+    assert_eq!(
+        errors(&project, "entry.ts", "missingCoercion"),
+        builtins(&["ReferenceError", "unknown"])
+    );
+}
+
+#[tokio::test]
 async fn follows_global_constructor_instances_to_prototype_methods() {
     let (_dir, project) = checked(&[("entry.ts", r#"
         function direct(buffer: unknown) { const view = new DataView(buffer); return view.getUint32(0, true); }
