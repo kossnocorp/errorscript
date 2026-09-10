@@ -31,6 +31,8 @@ pub struct EscFunction {
     pub module_id: EscModuleId,
     pub node_id: NodeId,
     pub name: Option<String>,
+    pub is_async: bool,
+    pub is_generator: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -47,6 +49,10 @@ pub struct EscCall {
     pub targets: Vec<EscFnId>,
     /// Additional targets may exist. This call must not be treated as error-free.
     pub unresolved: bool,
+    /// Known built-in/class instance types produced by a constructor call.
+    pub constructed_types: HashSet<EscErrorType>,
+    /// Canonical paths into the predefined global-effects table.
+    pub global_calls: HashSet<&'static str>,
 }
 
 #[derive(Debug, Default)]
@@ -58,4 +64,21 @@ pub struct EscCallGraph {
     /// Members remain separate functions for catch-sensitive error analysis.
     pub sccs: Vec<Vec<EscFnId>>,
     pub component_of: HashMap<EscFnId, usize>,
+    pub(crate) type_references: HashMap<EscErrorId, HashSet<EscErrorType>>,
+    pub(crate) super_types: HashMap<EscErrorType, HashSet<EscErrorType>>,
+    pub(crate) modified_globals: HashSet<String>,
+}
+
+impl EscCallGraph {
+    pub(crate) fn global(&self, path: &str) -> Option<&'static EscGlobal> {
+        let global = EscGlobals::get(path)?;
+        if self.modified_globals.contains("globalThis")
+            || self
+                .modified_globals
+                .contains(global.path.split('.').next()?)
+        {
+            return None;
+        }
+        Some(global)
+    }
 }

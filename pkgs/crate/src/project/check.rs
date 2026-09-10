@@ -8,6 +8,7 @@ impl EscProject {
             EscProjectState::Checked(_) => return Ok(()),
         };
         let call_graph = EscCallGraph::build(parsed, &self.repo_path)?;
+        let errors = resolve_errors(parsed, &call_graph);
 
         // Build successfully before moving the modules so errors preserve Parsed state.
         let EscProjectState::Parsed(parsed) =
@@ -15,10 +16,11 @@ impl EscProject {
         else {
             unreachable!();
         };
-        self.state = EscProjectState::Checked(EscProjectStateChecked {
+        self.state = EscProjectState::Checked(Box::new(EscProjectStateChecked {
             checked_files: parsed.parsed_files,
             call_graph,
-        });
+            errors,
+        }));
 
         Ok(())
     }

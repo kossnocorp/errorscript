@@ -4,7 +4,7 @@ use crate::prelude::*;
 pub enum EscProjectState {
     Resolved,
     Parsed(EscProjectStateParsed),
-    Checked(EscProjectStateChecked),
+    Checked(Box<EscProjectStateChecked>),
 }
 
 #[derive(Debug)]
@@ -16,4 +16,6 @@ pub struct EscProjectStateParsed {
 pub struct EscProjectStateChecked {
     pub checked_files: HashMap<EscModuleId, EscModule>,
     pub call_graph: EscCallGraph,
+    /// Escaping body errors (promise rejections for async functions).
+    pub errors: HashMap<EscFnId, HashSet<EscErrorType>>,
 }

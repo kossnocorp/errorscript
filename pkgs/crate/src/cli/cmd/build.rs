@@ -39,6 +39,18 @@ impl RunAsync for EscCliCmdBuild {
                 })
                 .collect::<Vec<_>>();
             println!("Resolved function SCCs: {resolved_sccs:#?}");
+
+            let mut resolved_errors = state.errors.iter().collect::<Vec<_>>();
+            resolved_errors.sort_unstable_by_key(|(id, _)| *id);
+            let resolved_errors = resolved_errors
+                .into_iter()
+                .map(|(id, errors)| {
+                    let mut errors = errors.iter().collect::<Vec<_>>();
+                    errors.sort_unstable();
+                    (&state.call_graph.graph[id.node()], errors)
+                })
+                .collect::<Vec<_>>();
+            println!("Resolved function errors: {resolved_errors:#?}");
         }
 
         Ok(())

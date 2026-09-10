@@ -27,6 +27,12 @@ pub use repo::*;
 mod checker;
 pub use checker::*;
 
+mod error;
+pub use error::*;
+
+mod globals;
+pub use globals::*;
+
 #[tokio::main]
 async fn main() {
     EscCli::main().await;

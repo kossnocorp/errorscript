@@ -18,6 +18,9 @@ type ExportKey = (EscModuleId, String);
 #[derive(Clone, Debug)]
 enum Value {
     Function(NodeIndex),
+    Type(EscErrorType),
+    TypeOnly(Box<Value>),
+    Global(&'static str),
     Binding(SymbolKey),
     Export(ExportKey),
     Namespace(EscModuleId),
@@ -46,6 +49,15 @@ struct Builder {
     exports: HashMap<ExportKey, Value>,
     stars: HashMap<EscModuleId, Vec<Option<EscModuleId>>>,
     calls: Vec<PendingCall>,
+    classes: HashMap<EscErrorType, ClassInfo>,
+    type_queries: Vec<(EscErrorId, Value, bool)>,
+    modified_globals: HashSet<String>,
+}
+
+struct ClassInfo {
+    constructor: Option<NodeIndex>,
+    superclass: Option<Value>,
+    unknown_initialization: bool,
 }
 
 #[derive(Default)]
@@ -53,6 +65,9 @@ struct Targets {
     functions: BTreeSet<NodeIndex>,
     namespaces: BTreeSet<EscModuleId>,
     unknown: bool,
+    types: HashSet<EscErrorType>,
+    annotation_types: HashSet<EscErrorType>,
+    globals: HashSet<&'static str>,
 }
 
 impl Targets {
@@ -60,6 +75,9 @@ impl Targets {
         self.functions.extend(other.functions);
         self.namespaces.extend(other.namespaces);
         self.unknown |= other.unknown;
+        self.types.extend(other.types);
+        self.annotation_types.extend(other.annotation_types);
+        self.globals.extend(other.globals);
     }
 }
 
@@ -93,6 +111,12 @@ impl EscCallGraph {
                         module_id: (*module_id).clone(),
                         node_id: node.id(),
                         name,
+                        is_async: match node.kind() {
+                            AstKind::Function(f) => f.r#async,
+                            AstKind::ArrowFunctionExpression(f) => f.r#async,
+                            _ => false,
+                        },
+                        is_generator: matches!(node.kind(), AstKind::Function(f) if f.generator),
                     });
                     builder
                         .functions
@@ -106,9 +130,17 @@ impl EscCallGraph {
             // module name with a different import mode.
             let mut sources = HashMap::new();
             for reference in &module.references.imports {
-                if let EscModuleReference::External { info, module, .. } = reference
-                    && !info.type_only
+                if let EscModuleReference::External {
+                    info,
+                    module,
+                    types,
+                } = reference
                 {
+                    let module = if info.type_only {
+                        types.as_ref().unwrap_or(module)
+                    } else {
+                        module
+                    };
                     let id = EscModuleId::from_path(module, repo)?;
                     if parsed.parsed_files.contains_key(&id) {
                         sources.insert(info.span, id);
@@ -142,9 +174,13 @@ impl Builder {
         id.reference_id
             .get()
             .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
-            .map_or(Value::Unknown, |symbol| {
-                Value::Binding((module.clone(), symbol))
-            })
+            .map_or_else(
+                || {
+                    EscGlobals::get(id.name.as_str())
+                        .map_or(Value::Unknown, |global| Value::Global(global.path))
+                },
+                |symbol| Value::Binding((module.clone(), symbol)),
+            )
     }
 
     fn expression(
@@ -162,6 +198,10 @@ impl Builder {
             Expression::ArrowFunctionExpression(function) => {
                 self.function(module, function.node_id.get())
             }
+            Expression::ClassExpression(class) => Value::Type(EscErrorType::Node(EscErrorId {
+                module_id: module.clone(),
+                node: class.node_id.get(),
+            })),
             Expression::ConditionalExpression(expr) => Value::Union(vec![
                 self.expression(module, semantic, &expr.consequent),
                 self.expression(module, semantic, &expr.alternate),
@@ -236,6 +276,54 @@ impl Builder {
             // Namespace exports are not ESM exports of the containing file.
             let top_level = matches!(semantic.nodes().parent_kind(node.id()), AstKind::Program(_));
             match node.kind() {
+                AstKind::TSInterfaceDeclaration(interface) => {
+                    self.bind(
+                        module,
+                        &interface.id,
+                        Value::TypeOnly(Box::new(Value::Type(EscErrorType::Node(EscErrorId {
+                            module_id: module.clone(),
+                            node: node.id(),
+                        })))),
+                    );
+                }
+                AstKind::TSTypeAliasDeclaration(alias) => {
+                    self.bind(
+                        module,
+                        &alias.id,
+                        Value::TypeOnly(Box::new(Value::Type(EscErrorType::Node(EscErrorId {
+                            module_id: module.clone(),
+                            node: node.id(),
+                        })))),
+                    );
+                }
+                AstKind::Class(class) => {
+                    let ty = EscErrorType::Node(EscErrorId {
+                        module_id: module.clone(),
+                        node: node.id(),
+                    });
+                    if let Some(id) = &class.id {
+                        self.bind(module, id, Value::Type(ty.clone()));
+                    }
+                    let constructor = class.body.body.iter().find_map(|element| {
+                        if let ClassElement::MethodDefinition(method) = element
+                            && method.kind == MethodDefinitionKind::Constructor
+                        {
+                            self.functions
+                                .get(&(module.clone(), method.value.node_id.get()))
+                                .copied()
+                        } else {
+                            None
+                        }
+                    });
+                    self.classes.insert(ty, ClassInfo {
+                        constructor,
+                        superclass: class.heritage.as_ref().map(|heritage| self.expression(module, semantic, &heritage.expression)),
+                        unknown_initialization: class.declare || !class.decorators.is_empty() || class.body.body.iter().any(|element| {
+                            matches!(element, ClassElement::PropertyDefinition(field) if !field.r#static && field.value.is_some())
+                                || matches!(element, ClassElement::AccessorProperty(_))
+                        }),
+                    });
+                }
                 AstKind::Function(function) => {
                     if let Some(id) = &function.id {
                         self.bind(module, id, self.function(module, node.id()));
@@ -249,19 +337,22 @@ impl Builder {
                         self.bind(module, id, value);
                     }
                 }
-                AstKind::ImportDeclaration(import) if !import.import_kind.is_type() => {
+                AstKind::ImportDeclaration(import) => {
                     for specifier in import.specifiers.iter().flatten() {
                         let (local, value) = match specifier {
-                            ImportDeclarationSpecifier::ImportSpecifier(specifier)
-                                if !specifier.import_kind.is_type() =>
-                            {
+                            ImportDeclarationSpecifier::ImportSpecifier(specifier) => {
+                                let value = Self::imported(
+                                    sources,
+                                    import.source.span,
+                                    specifier.imported.name().as_str(),
+                                );
                                 (
                                     &specifier.local,
-                                    Self::imported(
-                                        sources,
-                                        import.source.span,
-                                        specifier.imported.name().as_str(),
-                                    ),
+                                    if specifier.import_kind.is_type() {
+                                        Value::TypeOnly(Box::new(value))
+                                    } else {
+                                        value
+                                    },
                                 )
                             }
                             ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => (
@@ -275,12 +366,27 @@ impl Builder {
                                     .cloned()
                                     .map_or(Value::Unknown, Value::Namespace),
                             ),
-                            _ => continue,
+                        };
+                        let value = if import.import_kind.is_type() {
+                            Value::TypeOnly(Box::new(value))
+                        } else {
+                            value
                         };
                         self.bind(module, local, value);
                     }
                 }
                 AstKind::ExportDeclaration(export) if top_level => match &export.declaration {
+                    Declaration::TSInterfaceDeclaration(interface) => {
+                        self.export_binding(module, &interface.id)
+                    }
+                    Declaration::TSTypeAliasDeclaration(alias) => {
+                        self.export_binding(module, &alias.id)
+                    }
+                    Declaration::ClassDeclaration(class) => {
+                        if let Some(id) = &class.id {
+                            self.export_binding(module, id);
+                        }
+                    }
                     Declaration::FunctionDeclaration(function) => {
                         if let Some(id) = &function.id {
                             self.export_binding(module, id);
@@ -295,19 +401,20 @@ impl Builder {
                     }
                     _ => {}
                 },
-                AstKind::ExportNamedDeclaration(export)
-                    if top_level && !export.export_kind.is_type() =>
-                {
+                AstKind::ExportNamedDeclaration(export) if top_level => {
                     for specifier in &export.specifiers {
-                        if specifier.export_kind.is_type() {
-                            continue;
-                        }
                         let value = match &specifier.local {
                             ModuleExportName::IdentifierReference(id) => {
                                 self.identifier(module, semantic, id)
                             }
                             _ => Value::Unknown,
                         };
+                        let value =
+                            if export.export_kind.is_type() || specifier.export_kind.is_type() {
+                                Value::TypeOnly(Box::new(value))
+                            } else {
+                                value
+                            };
                         self.exports.insert(
                             (module.clone(), specifier.exported.name().to_string()),
                             value,
@@ -319,6 +426,12 @@ impl Builder {
                         ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
                             self.function(module, function.node_id.get())
                         }
+                        ExportDefaultDeclarationKind::ClassDeclaration(class) => {
+                            Value::Type(EscErrorType::Node(EscErrorId {
+                                module_id: module.clone(),
+                                node: class.node_id.get(),
+                            }))
+                        }
                         declaration => declaration.as_expression().map_or(Value::Unknown, |expr| {
                             self.expression(module, semantic, expr)
                         }),
@@ -326,20 +439,22 @@ impl Builder {
                     self.exports
                         .insert((module.clone(), "default".into()), value);
                 }
-                AstKind::ExportFromDeclaration(export)
-                    if top_level && !export.export_kind.is_type() =>
-                {
+                AstKind::ExportFromDeclaration(export) if top_level => {
                     for specifier in &export.specifiers {
-                        if specifier.export_kind.is_type() {
-                            continue;
-                        }
+                        let value = Self::imported(
+                            sources,
+                            export.source.span,
+                            specifier.local.name().as_str(),
+                        );
+                        let value =
+                            if export.export_kind.is_type() || specifier.export_kind.is_type() {
+                                Value::TypeOnly(Box::new(value))
+                            } else {
+                                value
+                            };
                         self.exports.insert(
                             (module.clone(), specifier.exported.name().to_string()),
-                            Self::imported(
-                                sources,
-                                export.source.span,
-                                specifier.local.name().as_str(),
-                            ),
+                            value,
                         );
                     }
                 }
@@ -365,6 +480,36 @@ impl Builder {
                 AstKind::TaggedTemplateExpression(call) => {
                     self.call(module, semantic, node.id(), &call.tag)
                 }
+                AstKind::BinaryExpression(binary) if binary.operator.is_instance_of() => {
+                    self.type_queries.push((
+                        EscErrorId {
+                            module_id: module.clone(),
+                            node: node.id(),
+                        },
+                        self.expression(module, semantic, &binary.right),
+                        false,
+                    ));
+                }
+                AstKind::TSTypeReference(reference) => {
+                    self.type_queries.push((
+                        EscErrorId {
+                            module_id: module.clone(),
+                            node: node.id(),
+                        },
+                        self.type_name(module, semantic, &reference.type_name),
+                        true,
+                    ));
+                }
+                AstKind::TSInterfaceHeritage(heritage) => {
+                    self.type_queries.push((
+                        EscErrorId {
+                            module_id: module.clone(),
+                            node: node.id(),
+                        },
+                        self.type_name(module, semantic, &heritage.type_name),
+                        true,
+                    ));
+                }
                 _ => {}
             }
         }
@@ -373,6 +518,23 @@ impl Builder {
         // a declaration isn't overwritten by the initializer. This is a may-call
         // union; execution order and conditional writes belong to later analysis.
         for node in semantic.nodes().iter() {
+            if let AstKind::AssignmentExpression(assignment) = node.kind() {
+                if let Some(member) = assignment.left.as_member_expression() {
+                    let value = self.expression(module, semantic, member.object());
+                    for path in self.resolve(&value, &mut HashSet::new()).globals {
+                        self.modified_globals
+                            .insert(path.split('.').next().unwrap().to_owned());
+                    }
+                }
+                if let AssignmentTarget::AssignmentTargetIdentifier(id) = &assignment.left
+                    && id.reference_id.get().is_some_and(|id| {
+                        semantic.scoping().get_reference(id).symbol_id().is_none()
+                    })
+                    && EscGlobals::get(id.name.as_str()).is_some()
+                {
+                    self.modified_globals.insert(id.name.to_string());
+                }
+            }
             if let AstKind::AssignmentExpression(assignment) = node.kind()
                 && let AssignmentTarget::AssignmentTargetIdentifier(id) = &assignment.left
                 && let Value::Binding(key) = self.identifier(module, semantic, id)
@@ -406,14 +568,47 @@ impl Builder {
             .nodes()
             .ancestor_ids(node)
             .find_map(|ancestor| self.functions.get(&(module.clone(), ancestor)).copied());
+        let callee = if matches!(callee, Expression::Super(_)) {
+            semantic
+                .nodes()
+                .ancestor_kinds(node)
+                .find_map(|kind| {
+                    if let AstKind::Class(class) = kind {
+                        Some(class.heritage.as_ref().map_or(Value::Unknown, |heritage| {
+                            self.expression(module, semantic, &heritage.expression)
+                        }))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Value::Unknown)
+        } else {
+            self.expression(module, semantic, callee)
+        };
         self.calls.push(PendingCall {
             caller,
             site: EscCallSite {
                 module_id: module.clone(),
                 node_id: node,
             },
-            callee: self.expression(module, semantic, callee),
+            callee,
         });
+    }
+
+    fn type_name(
+        &self,
+        module: &EscModuleId,
+        semantic: &Semantic<'_>,
+        name: &TSTypeName<'_>,
+    ) -> Value {
+        match name {
+            TSTypeName::IdentifierReference(id) => self.identifier(module, semantic, id),
+            TSTypeName::QualifiedName(name) => Value::Member(
+                Box::new(self.type_name(module, semantic, &name.left)),
+                name.right.name.to_string(),
+            ),
+            _ => Value::Unknown,
+        }
     }
 
     fn resolve(&self, value: &Value, visiting: &mut HashSet<Lookup>) -> Targets {
@@ -422,6 +617,31 @@ impl Builder {
             Value::Unknown => result.unknown = true,
             Value::Function(index) => {
                 result.functions.insert(*index);
+            }
+            Value::Type(ty) => {
+                result.types.insert(ty.clone());
+            }
+            Value::TypeOnly(value) => {
+                result = self.resolve(value, visiting);
+                result.annotation_types.extend(result.types.drain());
+                result.functions.clear();
+                result.globals.clear();
+            }
+            Value::Global(path) => {
+                if self.modified_globals.contains("globalThis")
+                    || self
+                        .modified_globals
+                        .contains(path.split('.').next().unwrap())
+                {
+                    result.unknown = true;
+                } else if let Some(global) = EscGlobals::get(path) {
+                    result.globals.insert(global.path);
+                    if let Some(ty) = global.instance_type {
+                        result.types.insert(EscErrorType::builtin(ty));
+                    }
+                } else {
+                    result.unknown = true;
+                }
             }
             Value::Namespace(module) => {
                 result.namespaces.insert(module.clone());
@@ -467,8 +687,16 @@ impl Builder {
             }
             Value::Member(object, property) => {
                 let object = self.resolve(object, visiting);
-                result.unknown =
-                    object.unknown || object.namespaces.is_empty() || !object.functions.is_empty();
+                result.unknown = object.unknown
+                    || (object.namespaces.is_empty() && object.globals.is_empty())
+                    || !object.functions.is_empty();
+                for object in object.globals {
+                    if let Some(global) = EscGlobals::property(object, property) {
+                        result.merge(self.resolve(&Value::Global(global.path), visiting));
+                    } else {
+                        result.unknown = true;
+                    }
+                }
                 for module in object.namespaces {
                     result
                         .merge(self.resolve(&Value::Export((module, property.clone())), visiting));
@@ -483,10 +711,41 @@ impl Builder {
     }
 
     fn finish(&mut self) {
+        self.result.modified_globals = self.modified_globals.clone();
+        for (ty, class) in &self.classes {
+            let mut bases = HashSet::new();
+            if let Some(base) = &class.superclass {
+                let resolved = self.resolve(base, &mut HashSet::new());
+                bases.extend(resolved.types);
+                if resolved.unknown || bases.is_empty() {
+                    bases.insert(EscErrorType::UNKNOWN);
+                }
+            }
+            self.result.super_types.insert(ty.clone(), bases);
+        }
+        for (site, value, annotation) in std::mem::take(&mut self.type_queries) {
+            let resolved = self.resolve(&value, &mut HashSet::new());
+            let mut types = resolved.types;
+            if annotation {
+                types.extend(resolved.annotation_types);
+            }
+            if resolved.unknown || types.is_empty() {
+                types.insert(EscErrorType::UNKNOWN);
+            }
+            self.result.type_references.insert(site, types);
+        }
         for call in std::mem::take(&mut self.calls) {
-            let targets = self.resolve(&call.callee, &mut HashSet::new());
-            let unresolved =
-                targets.unknown || targets.functions.is_empty() || !targets.namespaces.is_empty();
+            let mut targets = self.resolve(&call.callee, &mut HashSet::new());
+            for ty in targets.types.clone() {
+                let constructors = self.constructors(&ty, &mut HashSet::new());
+                targets.functions.extend(constructors.functions);
+                targets.unknown |= constructors.unknown;
+            }
+            let unresolved = targets.unknown
+                || (targets.functions.is_empty()
+                    && targets.types.is_empty()
+                    && targets.globals.is_empty())
+                || !targets.namespaces.is_empty();
             if let Some(caller) = call.caller {
                 for &callee in &targets.functions {
                     self.result
@@ -503,6 +762,8 @@ impl Builder {
                     .map(|index| self.id(index))
                     .collect(),
                 unresolved,
+                constructed_types: targets.types,
+                global_calls: targets.globals,
             });
         }
         for (component, mut members) in tarjan_scc(&self.result.graph).into_iter().enumerate() {
@@ -516,5 +777,28 @@ impl Builder {
             }
             self.result.sccs.push(members);
         }
+    }
+
+    fn constructors(&self, ty: &EscErrorType, visiting: &mut HashSet<EscErrorType>) -> Targets {
+        let mut targets = Targets::default();
+        if !visiting.insert(ty.clone()) {
+            targets.unknown = true;
+            return targets;
+        }
+        if let Some(class) = self.classes.get(ty) {
+            targets.unknown = class.unknown_initialization;
+            if let Some(index) = class.constructor {
+                targets.functions.insert(index);
+            } else if let Some(base) = &class.superclass {
+                let base = self.resolve(base, &mut HashSet::new());
+                targets.unknown |= base.unknown || base.types.is_empty();
+                targets.functions.extend(base.functions);
+                for ty in base.types {
+                    targets.merge(self.constructors(&ty, visiting));
+                }
+            }
+        }
+        visiting.remove(ty);
+        targets
     }
 }
