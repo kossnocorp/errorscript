@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 type SymbolKey = (EscModuleId, SymbolId);
 type ExportKey = (EscModuleId, String);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum Value {
     Signature(EscErrorId),
     Function(NodeIndex),
@@ -44,6 +44,10 @@ struct PendingCall {
 
 #[derive(Default)]
 struct Builder {
+    export_names: HashMap<EscModuleId, HashSet<String>>,
+    unknown_exports: HashSet<EscModuleId>,
+    resolving: bool,
+    resolved: std::cell::RefCell<HashMap<Value, Targets>>,
     module_pairs: HashSet<(EscModuleId, EscModuleId)>,
     sources: HashMap<(EscModuleId, Span), EscModuleId>,
     result: EscCallGraph,
@@ -63,7 +67,7 @@ struct ClassInfo {
     unknown_initialization: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Targets {
     signatures: HashSet<EscErrorId>,
     functions: BTreeSet<NodeIndex>,
@@ -130,6 +134,15 @@ impl EscCallGraph {
             });
         }
 
+        let mut module_ids = HashMap::new();
+        let mut module_id_for = |path: &EscModulePath| -> Result<EscModuleId> {
+            if let Some(id) = module_ids.get(path) {
+                return Ok(EscModuleId::clone(id));
+            }
+            let id = EscModuleId::from_path(path, repo)?;
+            module_ids.insert(path.clone(), id.clone());
+            Ok(id)
+        };
         for (module_id, module) in modules {
             // Resolve source spans rather than matching a possibly repeated
             // module name with a different import mode.
@@ -142,17 +155,16 @@ impl EscCallGraph {
                 } = reference
                 {
                     if let Some(types) = types {
-                        builder.module_pairs.insert((
-                            EscModuleId::from_path(module, repo)?,
-                            EscModuleId::from_path(types, repo)?,
-                        ));
+                        builder
+                            .module_pairs
+                            .insert((module_id_for(module)?, module_id_for(types)?));
                     }
                     let module = if info.type_only {
                         types.as_ref().unwrap_or(module)
                     } else {
                         module
                     };
-                    let id = EscModuleId::from_path(module, repo)?;
+                    let id = module_id_for(module)?;
                     if parsed.parsed_files.contains_key(&id) {
                         sources.insert(info.span, id);
                     }
@@ -672,6 +684,25 @@ impl Builder {
     }
 
     fn resolve(&self, value: &Value, visiting: &mut HashSet<Lookup>) -> Targets {
+        // Only context-free roots are memoized. A lookup reached while breaking
+        // an export/binding cycle can have a deliberately partial result.
+        if self.resolving
+            && let Some(result) = self.resolved.borrow().get(value)
+        {
+            return result.clone();
+        }
+        if self.resolving && visiting.is_empty() {
+            let result = self.resolve_inner(value, visiting);
+            self.resolved
+                .borrow_mut()
+                .insert(value.clone(), result.clone());
+            result
+        } else {
+            self.resolve_inner(value, visiting)
+        }
+    }
+
+    fn resolve_inner(&self, value: &Value, visiting: &mut HashSet<Lookup>) -> Targets {
         let mut result = Targets::default();
         match value {
             Value::Signature(signature) => {
@@ -739,10 +770,20 @@ impl Builder {
                 } else if key.1 != "default" {
                     for source in self.stars.get(&key.0).into_iter().flatten() {
                         match source {
-                            Some(module) => result.merge(self.resolve(
-                                &Value::Export((module.clone(), key.1.clone())),
-                                visiting,
-                            )),
+                            Some(module) => {
+                                if !self.resolving
+                                    || self.unknown_exports.contains(module)
+                                    || self
+                                        .export_names
+                                        .get(module)
+                                        .is_some_and(|names| names.contains(&key.1))
+                                {
+                                    result.merge(self.resolve(
+                                        &Value::Export((module.clone(), key.1.clone())),
+                                        visiting,
+                                    ));
+                                }
+                            }
                             None => result.unknown = true,
                         }
                     }
@@ -775,18 +816,65 @@ impl Builder {
     }
 
     fn finish(&mut self) {
+        self.resolving = true;
         // Export names, rather than declaration-local names or filenames,
         // connect signatures across aliases and re-export barrels.
-        let names = self
-            .exports
+        for (module, name) in self.exports.keys() {
+            self.export_names
+                .entry(module.clone())
+                .or_default()
+                .insert(name.clone());
+        }
+        let mut parents: HashMap<EscModuleId, HashSet<EscModuleId>> = HashMap::new();
+        for (module, sources) in &self.stars {
+            for source in sources {
+                if let Some(source) = source {
+                    parents
+                        .entry(source.clone())
+                        .or_default()
+                        .insert(module.clone());
+                } else {
+                    self.unknown_exports.insert(module.clone());
+                }
+            }
+        }
+        let mut queued = self
+            .export_names
             .keys()
-            .map(|(_, name)| name.clone())
+            .chain(&self.unknown_exports)
+            .cloned()
             .collect::<HashSet<_>>();
+        let mut pending = queued
+            .iter()
+            .cloned()
+            .collect::<std::collections::VecDeque<_>>();
+        while let Some(module) = pending.pop_front() {
+            queued.remove(&module);
+            let names = self.export_names.get(&module).cloned().unwrap_or_default();
+            for parent in parents.get(&module).into_iter().flatten() {
+                let target = self.export_names.entry(parent.clone()).or_default();
+                let before = target.len();
+                target.extend(
+                    names
+                        .iter()
+                        .filter(|name| name.as_str() != "default")
+                        .cloned(),
+                );
+                let changed = target.len() != before;
+                let unknown = self.unknown_exports.contains(&module)
+                    && self.unknown_exports.insert(parent.clone());
+                if (changed || unknown) && queued.insert(parent.clone()) {
+                    pending.push_back(parent.clone());
+                }
+            }
+        }
         for (runtime, types) in &self.module_pairs {
             if runtime == types {
                 continue;
             }
-            for name in &names {
+            // Search only exports reachable from this declaration module, not
+            // every export name in the project for every runtime/type pair.
+            for name in self.export_names.get(types).into_iter().flatten() {
                 let implementation = self.resolve(
                     &Value::Export((runtime.clone(), name.clone())),
                     &mut HashSet::new(),

@@ -72,7 +72,59 @@ impl Debug for EscModuleData<'_> {
 }
 
 impl EscModule {
+    /// Owned input for worker-local ASTs. Reusing the parser and semantic build
+    /// options preserves the snapshot's NodeId/SymbolId ordering.
+    pub(crate) fn analysis_source(&self) -> (Arc<String>, SourceType) {
+        (
+            Arc::new(self.cell.borrow_owner().source_code.clone()),
+            self.with_program(|program| program.source_type),
+        )
+    }
+
+    pub(crate) fn from_analysis_source(source: &str, source_type: SourceType) -> Self {
+        // Oxc's recursive parser/semantic traversal can exceed the default
+        // blocking-thread stack on deeply nested generated source.
+        stacker::maybe_grow(8 * 1024 * 1024, 16 * 1024 * 1024, || {
+            Self::from_analysis_source_inner(source, source_type)
+        })
+    }
+
+    fn from_analysis_source_inner(source: &str, source_type: SourceType) -> Self {
+        let owner = EscModuleOwner {
+            allocator: EscModuleAllocator(Allocator::new()),
+            source_code: source.to_owned(),
+        };
+        let mut diagnostics = None;
+        let cell = EscModuleCell::new(owner, |owner| {
+            let parsed = Parser::new(&owner.allocator.0, &owner.source_code, source_type).parse();
+            diagnostics = Some((parsed.diagnostics, parsed.panicked));
+            let program: &Program<'_> = owner.allocator.0.alloc(parsed.program);
+            let semantic = SemanticBuilder::new_compiler()
+                .with_build_nodes(true)
+                .build(program);
+            EscModuleData { program, semantic }
+        });
+        let (diagnostics, panicked) = diagnostics.unwrap();
+        Self {
+            cell,
+            references: EscModuleReferences::default(),
+            diagnostics,
+            panicked,
+        }
+    }
+
     pub fn parse(
+        source_code: String,
+        path: &EscModulePath,
+        resolver: &EscResolver,
+    ) -> Result<EscModule> {
+        // Keep the same stack allowance as worker-local analysis copies.
+        stacker::maybe_grow(8 * 1024 * 1024, 16 * 1024 * 1024, || {
+            Self::parse_inner(source_code, path, resolver)
+        })
+    }
+
+    fn parse_inner(
         source_code: String,
         path: &EscModulePath,
         resolver: &EscResolver,

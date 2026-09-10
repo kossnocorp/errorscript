@@ -10,6 +10,12 @@ impl Analyzer<'_, '_> {
     }
 
     fn statement(&self, statement: &Statement<'_>, env: Env, label: Option<&str>) -> Flow {
+        stacker::maybe_grow(128 * 1024, 2 * 1024 * 1024, || {
+            self.statement_inner(statement, env, label)
+        })
+    }
+
+    fn statement_inner(&self, statement: &Statement<'_>, env: Env, label: Option<&str>) -> Flow {
         match statement {
             Statement::BlockStatement(block) => self.statements(&block.body, env),
             Statement::ExpressionStatement(statement) => self.expr(&statement.expression, env).value(Value::undefined()),
@@ -37,7 +43,7 @@ impl Analyzer<'_, '_> {
             Statement::TryStatement(statement) => {
                 let mut flow = self.statements(&statement.block.body, env);
                 if let Some(handler) = &statement.handler
-                    && let Some(thrown) = flow.0.remove(&Completion::Throw)
+                    && let Some(thrown) = flow.take(&Completion::Throw)
                 {
                     let caught = if let Some(param) = &handler.param {
                         self.bind(&param.pattern, thrown.env, Value::types(thrown.value.types))
@@ -48,7 +54,7 @@ impl Analyzer<'_, '_> {
                     let mut result = Flow::default();
                     for (pending, state) in flow.0 {
                         let mut final_flow = self.statements(&finalizer.body, state.env);
-                        if let Some(normal) = final_flow.0.remove(&Completion::Normal) {
+                        if let Some(normal) = final_flow.take(&Completion::Normal) {
                             result.add(pending, State { env: normal.env, value: state.value });
                         }
                         result.join(final_flow);
@@ -63,7 +69,7 @@ impl Analyzer<'_, '_> {
             Statement::LabeledStatement(statement) => {
                 let name = statement.label.name.as_str();
                 let mut flow = self.statement(&statement.body, env, Some(name));
-                if let Some(state) = flow.0.remove(&Completion::Break(Some(name.to_string()))) {
+                if let Some(state) = flow.take(&Completion::Break(Some(name.to_string()))) {
                     flow.add(Completion::Normal, state);
                 }
                 flow
@@ -104,7 +110,7 @@ impl Analyzer<'_, '_> {
                     for case in statement.cases.iter().skip(start) {
                         branch = branch.then(|state| self.statements(&case.consequent, state.env));
                     }
-                    if let Some(state) = branch.0.remove(&Completion::Break(None)) { branch.add(Completion::Normal, state); }
+                    if let Some(state) = branch.take(&Completion::Break(None)) { branch.add(Completion::Normal, state); }
                     result.join(branch);
                 }
                 if statement.cases.iter().all(|case| case.test.is_some()) {
@@ -253,12 +259,12 @@ impl Analyzer<'_, '_> {
                 }
                 flow
             });
-            let mut back = iteration.0.remove(&Completion::Normal);
+            let mut back = iteration.take(&Completion::Normal);
             for target in [None, label.map(str::to_owned)] {
-                if let Some(state) = iteration.0.remove(&Completion::Break(target.clone())) {
+                if let Some(state) = iteration.take(&Completion::Break(target.clone())) {
                     result.add(Completion::Normal, state);
                 }
-                if let Some(state) = iteration.0.remove(&Completion::Continue(target)) {
+                if let Some(state) = iteration.take(&Completion::Continue(target)) {
                     if let Some(back) = &mut back {
                         join_env(&mut back.env, state.env);
                     } else {
@@ -294,7 +300,7 @@ impl Analyzer<'_, '_> {
                         }
                     });
             }
-            let next = flow.0.remove(&Completion::Normal);
+            let next = flow.take(&Completion::Normal);
             result.join(flow);
             let Some(next) = next else {
                 break;

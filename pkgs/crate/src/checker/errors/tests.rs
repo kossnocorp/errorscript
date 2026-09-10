@@ -50,6 +50,192 @@ fn builtins(names: &[&'static str]) -> Types {
 }
 
 #[tokio::test]
+async fn analyzes_deep_expressions_on_blocking_workers() {
+    let expression = format!("{}1{}", "1 + (".repeat(512), ")".repeat(512));
+    let source = format!("export function deep() {{ return {expression}; }}");
+    let (_dir, project) = checked(&[("entry.ts", &source)]).await;
+    assert!(errors(&project, "entry.ts", "deep").is_empty());
+}
+
+#[test]
+fn completion_merges_are_order_independent_and_keep_abrupt_paths() {
+    let completions = [
+        Completion::Normal,
+        Completion::Return,
+        Completion::Throw,
+        Completion::Break(None),
+        Completion::Break(Some("outer".into())),
+        Completion::Continue(Some("outer".into())),
+    ];
+    let mut forward = Flow::default();
+    let mut reverse = Flow::default();
+    for kind in &completions {
+        forward.join(Flow::one(
+            kind.clone(),
+            Env::new(),
+            Value::builtin("number"),
+        ));
+    }
+    for kind in completions.iter().rev() {
+        reverse.join(Flow::one(
+            kind.clone(),
+            Env::new(),
+            Value::builtin("number"),
+        ));
+    }
+    assert_eq!(forward, reverse);
+    let mut continued =
+        forward.then(|state| Flow::one(Completion::Throw, state.env, Value::builtin("string")));
+    assert!(continued.take(&Completion::Normal).is_none());
+    assert_eq!(
+        continued.take(&Completion::Throw).unwrap().value.types,
+        builtins(&["number", "string"])
+    );
+    for kind in completions
+        .iter()
+        .filter(|kind| !matches!(kind, Completion::Normal | Completion::Throw))
+    {
+        assert_eq!(
+            continued.take(kind).unwrap().value.types,
+            builtins(&["number"])
+        );
+    }
+    assert_eq!(continued, Flow::default());
+}
+
+#[test]
+fn persistent_environments_preserve_branch_isolation_and_missing_bindings() {
+    let mut left = Env::new();
+    for index in 0..128 {
+        left.insert(SymbolId::new(index), Value::builtin("number"));
+    }
+    let original = left.clone();
+    let mut right = left.clone();
+    right.remove(&SymbolId::new(1));
+    right.insert(SymbolId::new(2), Value::builtin("string"));
+    right.insert(SymbolId::new(200), Value::boolean(false));
+    join_env(&mut left, right.clone());
+    assert_eq!(left[&SymbolId::new(0)].types, builtins(&["number"]));
+    assert_eq!(
+        left[&SymbolId::new(1)].types,
+        builtins(&["number", "unknown"])
+    );
+    assert_eq!(
+        left[&SymbolId::new(2)].types,
+        builtins(&["number", "string"])
+    );
+    assert_eq!(
+        left[&SymbolId::new(200)].types,
+        builtins(&["boolean", "unknown"])
+    );
+    assert_eq!(left[&SymbolId::new(200)].truth, 3);
+    assert_eq!(right[&SymbolId::new(200)], Value::boolean(false));
+    assert_eq!(original[&SymbolId::new(2)].types, builtins(&["number"]));
+    assert!(!original.contains_key(&SymbolId::new(200)));
+    let shared = left.clone();
+    join_env(&mut left, shared.clone());
+    assert!(left.ptr_eq(&shared));
+}
+
+#[tokio::test]
+async fn parallel_queue_matches_single_worker_with_recursion_and_late_dependencies() {
+    check_parallel_queue().await;
+}
+
+#[test]
+fn parallel_queue_works_with_a_smaller_tokio_blocking_pool() {
+    // More logical workers than available blocking threads must not deadlock.
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap()
+        .block_on(check_parallel_queue());
+}
+
+async fn check_parallel_queue() {
+    let dir = tempdir().unwrap();
+    std::fs::create_dir(dir.path().join(".git")).unwrap();
+    std::fs::write(dir.path().join("errconfig.toml"), "files = [\"entry.ts\"]").unwrap();
+    let mut source = String::from(
+        r#"
+        import { peer } from './peer';
+        export function recursive(flag: boolean) { if (flag) throw new TypeError(); try { peer(flag); } catch {} }
+        export function root(n: number) { return local(n >>> 0); }
+        function local(n) { if (n <= 0) return 0; return local(n - 1); }
+        const captured = produce();
+        function produce() { return new RangeError(); }
+        export function readCaptured() { throw captured; }
+    "#,
+    );
+    // Many simultaneously ready SCCs in one arena, plus a deep caller chain.
+    for i in 0..32 {
+        source.push_str(&format!(
+            "export function leaf{i}() {{ throw new SyntaxError(); }}\n"
+        ));
+        source.push_str(&format!(
+            "export function chain{i}() {{ {}(); }}\n",
+            if i == 0 {
+                "leaf0".to_owned()
+            } else {
+                format!("chain{}", i - 1)
+            }
+        ));
+    }
+    std::fs::write(dir.path().join("entry.ts"), source).unwrap();
+    std::fs::write(dir.path().join("peer.ts"), "import { recursive } from './entry'; export function peer(flag: boolean) { if (flag) throw new RangeError(); recursive(flag); }").unwrap();
+    let mut project = EscProject::resolve(Some(&dir.path().to_path_buf()))
+        .await
+        .unwrap();
+    project.parse_files().await.unwrap();
+    let EscProjectState::Parsed(parsed) = &project.state else {
+        unreachable!();
+    };
+    let mut graph = EscCallGraph::build(parsed, &project.repo_path).unwrap();
+    let sequential = queue::resolve_with_workers(parsed, &graph, 1)
+        .await
+        .unwrap();
+    let parallel = queue::resolve_with_workers(parsed, &graph, 4)
+        .await
+        .unwrap();
+    assert_eq!(sequential, parallel);
+    for id in graph.sccs.iter().flatten() {
+        let name = graph.graph[id.node()].name.as_deref().unwrap();
+        let expected = match name {
+            "recursive" => builtins(&["TypeError"]),
+            "peer" => builtins(&["TypeError", "RangeError"]),
+            "readCaptured" => builtins(&["RangeError"]),
+            "root" | "local" | "produce" => Types::new(),
+            _ => builtins(&["SyntaxError"]),
+        };
+        assert_eq!(parallel[id], expected, "{name}");
+    }
+    // A worker panic must surface as an error rather than leave the dependency
+    // queue waiting forever for a completion that will never arrive.
+    let id = graph
+        .sccs
+        .iter()
+        .flatten()
+        .find(|id| graph.graph[id.node()].name.as_deref() == Some("produce"))
+        .unwrap()
+        .clone();
+    graph.signatures.insert(
+        id.clone(),
+        vec![EscErrorId {
+            module_id: id.module_id().clone(),
+            node: NodeId::new(1_000_000),
+        }],
+    );
+    let error = queue::resolve_with_workers(parsed, &graph, 4)
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("Checking worker failed"),
+        "{error:#}"
+    );
+}
+
+#[tokio::test]
 async fn applies_paired_declarations_to_esm_and_cjs_implementations() {
     let (_dir, project) = checked(&[
         ("entry.ts", "import { hash } from 'paired'; const cjs = require('paired'); export function call(input: Uint8Array) { return hash(input); }"),

@@ -11,13 +11,17 @@ use std::cell::RefCell;
 
 mod arguments;
 mod expression;
+mod queue;
 mod statement;
 #[cfg(test)]
 mod tests;
 mod types;
+pub(crate) use queue::resolve_errors;
 
 type Types = HashSet<EscErrorType>;
-type Env = HashMap<SymbolId, Value>;
+/// Persistent environments share unchanged branches and copy only changed
+/// tree nodes. This also makes completion joins proportional to their diff.
+type Env = im::OrdMap<SymbolId, Value>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Value {
@@ -75,28 +79,57 @@ impl Value {
         self.types.iter().all(|ty| matches!(ty, EscErrorType::Buildin(name) if matches!(name.as_str(), "number" | "string" | "boolean" | "undefined" | "null")))
     }
     fn join(&mut self, other: Self) {
-        self.types.extend(other.types);
-        self.deferred.extend(other.deferred);
-        self.awaited.extend(other.awaited);
-        self.elements.extend(other.elements);
-        self.globals.extend(other.globals);
+        join_set(&mut self.types, other.types);
+        join_set(&mut self.deferred, other.deferred);
+        join_set(&mut self.awaited, other.awaited);
+        join_set(&mut self.elements, other.elements);
+        join_set(&mut self.globals, other.globals);
         self.nonglobal |= other.nonglobal;
         self.truth |= other.truth;
     }
 }
 
-fn join_env(env: &mut Env, other: Env) {
-    for (id, value) in env.iter_mut() {
-        if !other.contains_key(id) {
-            value.join(Value::unknown());
-        }
+fn join_set<T: Eq + std::hash::Hash>(target: &mut HashSet<T>, incoming: HashSet<T>) {
+    if incoming.is_empty() {
+        return;
     }
-    for (id, value) in other {
-        env.entry(id).or_insert_with(Value::unknown).join(value);
+    if target.is_empty() {
+        *target = incoming;
+    } else {
+        target.extend(incoming);
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+fn join_env(env: &mut Env, other: Env) {
+    if env.ptr_eq(&other) {
+        return;
+    }
+    let previous = env.clone();
+    for change in previous.diff(&other) {
+        use im::ordmap::DiffItem;
+        let (id, value) = match change {
+            DiffItem::Add(id, value) | DiffItem::Remove(id, value) => {
+                let mut value = value.clone();
+                value.join(Value::unknown());
+                (*id, value)
+            }
+            DiffItem::Update {
+                old: (id, old),
+                new: (_, new),
+            } => {
+                let mut value = old.clone();
+                value.join(new.clone());
+                (*id, value)
+            }
+        };
+        // Avoid replacing a shared tree node if the may-value was already known.
+        if previous.get(&id) != Some(&value) {
+            env.insert(id, value);
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Completion {
     Normal,
     Return,
@@ -112,30 +145,47 @@ struct State {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Flow(HashMap<Completion, State>);
+struct Flow(Vec<(Completion, State)>);
 
 impl Flow {
     fn one(kind: Completion, env: Env, value: Value) -> Self {
-        Self(HashMap::from([(kind, State { env, value })]))
+        Self(vec![(kind, State { env, value })])
     }
     fn normal(env: Env, value: Value) -> Self {
         Self::one(Completion::Normal, env, value)
     }
     fn add(&mut self, kind: Completion, state: State) {
-        if let Some(current) = self.0.get_mut(&kind) {
-            join_env(&mut current.env, state.env);
-            current.value.join(state.value);
-        } else {
-            self.0.insert(kind, state);
+        // There are normally only one or two completions. Keep them sorted so
+        // equality is order-independent without allocating a hash table.
+        match self.0.binary_search_by(|(existing, _)| existing.cmp(&kind)) {
+            Ok(index) => {
+                let current = &mut self.0[index].1;
+                join_env(&mut current.env, state.env);
+                current.value.join(state.value);
+            }
+            Err(index) => self.0.insert(index, (kind, state)),
         }
     }
+    fn take(&mut self, kind: &Completion) -> Option<State> {
+        self.0
+            .binary_search_by(|(existing, _)| existing.cmp(kind))
+            .ok()
+            .map(|index| self.0.remove(index).1)
+    }
     fn join(&mut self, other: Self) {
+        if self.0.is_empty() {
+            *self = other;
+            return;
+        }
         for (kind, state) in other.0 {
             self.add(kind, state);
         }
     }
     fn then(mut self, next: impl FnOnce(State) -> Self) -> Self {
-        if let Some(state) = self.0.remove(&Completion::Normal) {
+        if let Some(state) = self.take(&Completion::Normal) {
+            if self.0.is_empty() {
+                return next(state);
+            }
             self.join(next(state));
         }
         self
@@ -166,80 +216,20 @@ struct Summary {
 
 impl Summary {
     fn join(&mut self, other: Self) {
-        self.errors.extend(other.errors);
+        join_set(&mut self.errors, other.errors);
         self.returned.join(other.returned);
         self.completes |= other.completes;
     }
 }
 
-pub(crate) fn resolve_errors(
-    parsed: &EscProjectStateParsed,
-    graph: &EscCallGraph,
-) -> HashMap<EscFnId, Types> {
-    let mut summaries = graph
-        .sccs
-        .iter()
-        .flatten()
-        .map(|id| (id.clone(), Summary::default()))
-        .collect::<HashMap<_, _>>();
-    let calls = graph
-        .calls
-        .iter()
-        .map(|call| ((call.site.module_id.clone(), call.site.node_id), call))
-        .collect::<HashMap<_, _>>();
-    let arguments = arguments::Arguments::new(parsed, graph);
-
-    // The outer worklist also covers value dependencies through captured/global
-    // initializers, which are not necessarily edges in the direct call graph.
-    loop {
-        let mut changed = false;
-        let previous_arguments = arguments.snapshot();
-        for component in &graph.sccs {
-            loop {
-                let mut component_changed = false;
-                for id in component {
-                    let function = &graph.graph[id.node()];
-                    let next = parsed.parsed_files[&function.module_id].with_semantic(|result| {
-                        Analyzer {
-                            modules: &parsed.parsed_files,
-                            module: &function.module_id,
-                            semantic: &result.semantic,
-                            graph,
-                            calls: &calls,
-                            summaries: &summaries,
-                            reading: RefCell::new(HashSet::new()),
-                            arguments: &arguments,
-                        }
-                        .function(function, id)
-                    });
-                    let summary = summaries.get_mut(id).unwrap();
-                    let previous = summary.clone();
-                    summary.join(next);
-                    component_changed |= *summary != previous;
-                }
-                changed |= component_changed;
-                if !component_changed {
-                    break;
-                }
-            }
-        }
-        if !changed && arguments.snapshot() == previous_arguments {
-            break;
-        }
-    }
-    summaries
-        .into_iter()
-        .map(|(id, summary)| (id, summary.errors))
-        .collect()
-}
-
 struct Analyzer<'s, 'a> {
-    modules: &'s HashMap<EscModuleId, EscModule>,
+    mutation_cache: RefCell<HashMap<SymbolId, bool>>,
+    modules: &'s queue::Modules,
     module: &'s EscModuleId,
     semantic: &'s Semantic<'a>,
     graph: &'s EscCallGraph,
-    calls: &'s HashMap<(EscModuleId, NodeId), &'s EscCall>,
-    summaries: &'s HashMap<EscFnId, Summary>,
+    calls: &'s HashMap<(EscModuleId, NodeId), EscCall>,
+    summaries: &'s queue::Summaries,
     reading: RefCell<HashSet<SymbolId>>,
     arguments: &'s arguments::Arguments,
 }
@@ -348,6 +338,9 @@ impl Analyzer<'_, '_> {
     }
 
     fn captured_mutation(&self, symbol: SymbolId) -> bool {
+        if let Some(value) = self.mutation_cache.borrow().get(&symbol) {
+            return *value;
+        }
         let owner = |mut node| loop {
             match self.semantic.nodes().kind(node) {
                 AstKind::Function(_)
@@ -357,12 +350,15 @@ impl Analyzer<'_, '_> {
             }
         };
         let declaration_owner = owner(self.semantic.scoping().symbol_declaration(symbol));
-        self.semantic
+        let mutated = self
+            .semantic
             .scoping()
             .get_resolved_references(symbol)
             .any(|reference| {
                 reference.is_write() && owner(reference.node_id()) != declaration_owner
-            })
+            });
+        self.mutation_cache.borrow_mut().insert(symbol, mutated);
+        mutated
     }
 
     fn read(&self, id: &IdentifierReference<'_>, env: Env) -> Flow {
@@ -404,8 +400,7 @@ impl Analyzer<'_, '_> {
                 .as_ref()
                 .map_or(Some(Value::undefined()), |expr| {
                     self.expr(expr, env.clone())
-                        .0
-                        .remove(&Completion::Normal)
+                        .take(&Completion::Normal)
                         .map(|state| state.value)
                 })
         } else {

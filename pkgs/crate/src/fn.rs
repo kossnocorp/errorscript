@@ -26,7 +26,7 @@ impl EscFnId {
 }
 
 /// Owned address of a function's syntax in the corresponding module's Semantic.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EscFunction {
     pub module_id: EscModuleId,
     pub node_id: NodeId,
@@ -41,7 +41,7 @@ pub struct EscCallSite {
     pub node_id: NodeId,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EscCall {
     /// None for module-level execution.
     pub caller: Option<EscFnId>,
@@ -55,7 +55,7 @@ pub struct EscCall {
     pub global_calls: HashSet<&'static str>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EscCallGraph {
     /// Declaration signatures linked through paired runtime/type module exports.
     pub(crate) signatures: HashMap<EscFnId, Vec<EscErrorId>>,

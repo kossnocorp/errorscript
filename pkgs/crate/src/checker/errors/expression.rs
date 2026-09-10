@@ -8,6 +8,12 @@ impl Analyzer<'_, '_> {
     }
 
     pub(super) fn expr(&self, expression: &Expression<'_>, env: Env) -> Flow {
+        stacker::maybe_grow(128 * 1024, 2 * 1024 * 1024, || {
+            self.expr_inner(expression, env)
+        })
+    }
+
+    fn expr_inner(&self, expression: &Expression<'_>, env: Env) -> Flow {
         let expression = expression.get_inner_expression();
         match expression {
             Expression::Identifier(id) => self.read(id, env),
@@ -334,10 +340,21 @@ impl Analyzer<'_, '_> {
         // Function summaries don't yet carry writes to captured bindings.
         // Widen potentially mutated values instead of preserving stale types.
         if call.unresolved || !call.targets.is_empty() {
-            for (symbol, value) in &mut env {
-                if self.captured_mutation(*symbol) {
-                    value.join(Value::unknown());
-                }
+            let mutated = env
+                .iter()
+                .filter(|(_, value)| {
+                    !value.nonglobal
+                        || value.truth != 3
+                        || !value.types.contains(&EscErrorType::UNKNOWN)
+                })
+                .filter(|(symbol, _)| self.captured_mutation(**symbol))
+                .map(|(symbol, _)| *symbol)
+                .collect::<Vec<_>>();
+            for symbol in mutated {
+                let value = env.get_mut(&symbol).unwrap();
+                value.types.insert(EscErrorType::UNKNOWN);
+                value.nonglobal = true;
+                value.truth = 3;
             }
         }
         if !new
@@ -389,7 +406,7 @@ impl Analyzer<'_, '_> {
             ));
         }
         for target in &call.targets {
-            let summary = &self.summaries[target];
+            let summary = self.summaries.get(target);
             let function = &self.graph.graph[target.node()];
             if function.is_async || function.is_generator {
                 if new {

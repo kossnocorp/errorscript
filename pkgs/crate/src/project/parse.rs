@@ -1,31 +1,25 @@
 use crate::prelude::*;
 
-type EscProjectParseQueue = Arc<tokio::sync::Mutex<Vec<EscModulePath>>>;
+use std::collections::VecDeque;
 
 impl EscProject {
     pub async fn parse_files(&mut self) -> Result<()> {
-        let files: EscProjectParseQueue = Arc::new(tokio::sync::Mutex::new(
-            self.files().await?.into_iter().collect(),
-        ));
+        let mut files = self.files().await?.into_iter().collect::<VecDeque<_>>();
         let mut parsed_files = HashMap::new();
         let mut scheduled = HashSet::new();
         let mut tasks = tokio::task::JoinSet::new();
         let resolver = self.resolver.clone();
+        let workers = std::thread::available_parallelism().map_or(1, usize::from);
 
         loop {
-            let pending = {
-                let mut files = files.lock().await;
-                files
-                    .drain(..)
-                    .filter(|path| scheduled.insert(path.clone()))
-                    .collect::<Vec<_>>()
-            };
-
-            for path in pending {
-                let path = path.clone();
-                let files = Arc::clone(&files);
+            while tasks.len() < workers
+                && let Some(path) = files.pop_front()
+            {
+                if !scheduled.insert(path.clone()) {
+                    continue;
+                }
                 let resolver = resolver.clone();
-                tasks.spawn(Self::parse_file(path, files, resolver));
+                tasks.spawn_blocking(move || Self::parse_file(path, resolver));
             }
 
             let Some(file) = tasks.join_next().await else {
@@ -34,6 +28,7 @@ impl EscProject {
             let (path, file) = file
                 .context("File loading task failed")?
                 .context("Failed to load project file")?;
+            files.extend(file.extract_dependencies());
             parsed_files.insert(self.module_id(&path)?, file);
         }
 
@@ -42,19 +37,14 @@ impl EscProject {
         Ok(())
     }
 
-    async fn parse_file(
+    fn parse_file(
         path: EscModulePath,
-        files: EscProjectParseQueue,
         resolver: EscResolver,
     ) -> Result<(EscModulePath, EscModule)> {
-        let source_code = tokio::fs::read_to_string(&path)
-            .await
+        let source_code = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read project file at {path}"))?;
 
         let file = EscModule::parse(source_code, &path, &resolver)?;
-
-        let dependencies = file.extract_dependencies();
-        files.lock().await.extend(dependencies);
 
         Ok((path, file))
     }

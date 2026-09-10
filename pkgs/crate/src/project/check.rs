@@ -8,7 +8,7 @@ impl EscProject {
             EscProjectState::Checked(_) => return Ok(()),
         };
         let call_graph = EscCallGraph::build(parsed, &self.repo_path)?;
-        let errors = resolve_errors(parsed, &call_graph);
+        let errors = resolve_errors(parsed, &call_graph).await?;
 
         // Build successfully before moving the modules so errors preserve Parsed state.
         let EscProjectState::Parsed(parsed) =

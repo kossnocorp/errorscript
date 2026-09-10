@@ -8,6 +8,21 @@ fn local_parameters(
     graph: &EscCallGraph,
 ) -> HashMap<EscFnId, usize> {
     let mut result = HashMap::new();
+    let calls = graph
+        .calls
+        .iter()
+        .map(|call| ((&call.site.module_id, call.site.node_id), call))
+        .collect::<HashMap<_, _>>();
+    let mut has_caller = vec![false; graph.sccs.len()];
+    for call in &graph.calls {
+        if let Some(caller) = &call.caller {
+            for target in &call.targets {
+                if graph.component_of[caller] != graph.component_of[target] {
+                    has_caller[graph.component_of[target]] = true;
+                }
+            }
+        }
+    }
     for id in graph.sccs.iter().flatten() {
         let function = &graph.graph[id.node()];
         parsed.parsed_files[&function.module_id].with_semantic(|data| {
@@ -21,21 +36,15 @@ fn local_parameters(
             if references.iter().all(|reference| {
                 let AstKind::CallExpression(call) = semantic.nodes().parent_kind(reference.node_id()) else { return false; };
                 if !matches!(&call.callee, Expression::Identifier(callee) if callee.node_id.get() == reference.node_id()) { return false; }
-                graph.calls.iter().any(|linked| linked.site.module_id == function.module_id
-                    && linked.site.node_id == call.node_id.get() && !linked.unresolved
+                calls.get(&(&function.module_id, call.node_id.get())).is_some_and(|linked| !linked.unresolved
                     && linked.targets == [id.clone()] && linked.caller.is_some())
             }) { result.insert(id.clone(), f.params.items.len()); }
         });
     }
     // A recursive component without a source caller still needs open-world
     // entry values, just like an otherwise uncalled function.
-    for component in &graph.sccs {
-        if !graph.calls.iter().any(|call| {
-            call.caller
-                .as_ref()
-                .is_some_and(|caller| !component.contains(caller))
-                && call.targets.iter().any(|target| component.contains(target))
-        }) {
+    for (index, component) in graph.sccs.iter().enumerate() {
+        if !has_caller[index] {
             for id in component {
                 result.remove(id);
             }
@@ -46,14 +55,14 @@ fn local_parameters(
 
 #[derive(Default)]
 pub(super) struct Arguments {
-    counts: HashMap<EscFnId, usize>,
-    values: RefCell<HashMap<EscFnId, Vec<Value>>>,
+    pub(super) counts: Arc<HashMap<EscFnId, usize>>,
+    pub(super) values: RefCell<HashMap<EscFnId, Vec<Value>>>,
 }
 
 impl Arguments {
     pub(super) fn new(parsed: &EscProjectStateParsed, graph: &EscCallGraph) -> Self {
         Self {
-            counts: local_parameters(parsed, graph),
+            counts: Arc::new(local_parameters(parsed, graph)),
             ..Self::default()
         }
     }
