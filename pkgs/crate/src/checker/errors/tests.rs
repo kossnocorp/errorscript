@@ -50,6 +50,42 @@ fn builtins(names: &[&'static str]) -> Types {
 }
 
 #[tokio::test]
+async fn follows_global_constructor_instances_to_prototype_methods() {
+    let (_dir, project) = checked(&[("entry.ts", r#"
+        function direct(buffer: unknown) { const view = new DataView(buffer); return view.getUint32(0, true); }
+        function make(buffer: unknown) { return new DataView(buffer); }
+        function returned(buffer: unknown) { const view = make(buffer); const alias = view; return alias.getUint32(0); }
+        function caught(buffer: unknown) { try { const view = new DataView(buffer); view.getUint32(0); } catch {} }
+        function shadow(DataView: unknown) { const view = new DataView(); view.getUint32(0); }
+        function mixed(buffer: unknown, flag: boolean, other: unknown) { const view = flag ? new DataView(buffer) : other; view.getUint32(0); }
+        function customOffset(buffer: unknown, offset: unknown) { new DataView(buffer).getUint32(offset); }
+        function typed(view: DataView) { return view.getUint32(0); }
+        function returnType(view: DataView) { try { throw view.getUint32(0); } catch (e) { throw e; } }
+    "#)]).await;
+    for name in ["direct", "make", "returned", "typed"] {
+        assert_eq!(
+            errors(&project, "entry.ts", name),
+            builtins(&["RangeError", "TypeError"])
+        );
+    }
+    assert!(errors(&project, "entry.ts", "caught").is_empty());
+    assert_eq!(
+        errors(&project, "entry.ts", "returnType"),
+        builtins(&["RangeError", "TypeError", "number"])
+    );
+    assert_eq!(
+        errors(&project, "entry.ts", "shadow"),
+        builtins(&["unknown"])
+    );
+    for name in ["mixed", "customOffset"] {
+        assert_eq!(
+            errors(&project, "entry.ts", name),
+            builtins(&["RangeError", "TypeError", "unknown"])
+        );
+    }
+}
+
+#[tokio::test]
 async fn resolves_global_effects_and_shadowing() {
     let (_dir, project) = checked(&[(
         "entry.ts",

@@ -130,6 +130,15 @@ impl Analyzer<'_, '_> {
             }
         }
         for ty in value.types.iter().filter(|_| value.nonglobal) {
+            if let EscErrorType::Buildin(instance) = ty
+                && let Some(global) = self
+                    .graph
+                    .global(&format!("{}.prototype.{name}", instance.as_str()))
+            {
+                result.join(Value::global(global));
+                errors.extend(global.read_errors.iter().cloned());
+                continue;
+            }
             if let Some(value) = self.property_type(ty, name, &mut HashSet::new()) {
                 result.join(value);
             } else {

@@ -178,7 +178,7 @@ impl Analyzer<'_, '_> {
     ) -> Flow {
         let call = self.calls.get(&(self.module.clone(), node));
         let resolved = call.is_some_and(|call| !call.unresolved);
-        let models = call
+        let mut models = call
             .into_iter()
             .flat_map(|call| &call.global_calls)
             .filter_map(|path| self.graph.global(path))
@@ -194,6 +194,24 @@ impl Analyzer<'_, '_> {
         } else {
             self.expr(callee, env.clone())
         };
+        // Flow-derived values include constructor instances, aliases, and
+        // function returns that the syntactic call linker cannot resolve.
+        let mut global_targets = HashSet::new();
+        let mut only_globals = false;
+        flow = flow.then(|state| {
+            global_targets = state.value.globals.clone();
+            only_globals = !state.value.nonglobal && !global_targets.is_empty();
+            for path in &global_targets {
+                if let Some(model) = self
+                    .graph
+                    .global(path)
+                    .and_then(|global| if new { global.construct } else { global.call })
+                {
+                    models.push(model);
+                }
+            }
+            Flow::normal(state.env, state.value)
+        });
         for (index, argument) in arguments.iter().enumerate() {
             flow = if let Argument::SpreadElement(spread) = argument {
                 flow.then(|state| self.expr(&spread.argument, state.env))
@@ -215,6 +233,46 @@ impl Analyzer<'_, '_> {
             });
         }
         flow = flow.then(|state| {
+            if !global_targets.is_empty() {
+                let mut result = Flow::default();
+                for path in &global_targets {
+                    let Some(global) = self.graph.global(path) else {
+                        result.join(self.unknown(state.env.clone()));
+                        continue;
+                    };
+                    if let Some(model) = if new { global.construct } else { global.call } {
+                        if arguments.len() < model.min_arguments {
+                            result = result.possible_throw(
+                                &state.env,
+                                model.missing_arguments_errors.iter().cloned().collect(),
+                            );
+                        } else {
+                            result.join(
+                                Flow::normal(state.env.clone(), Value::builtin(model.returns))
+                                    .possible_throw(
+                                        &state.env,
+                                        model.errors.iter().cloned().collect(),
+                                    ),
+                            );
+                        }
+                    } else {
+                        result.join(Flow::one(
+                            Completion::Throw,
+                            state.env.clone(),
+                            Value::builtin("TypeError"),
+                        ));
+                    }
+                }
+                if !only_globals {
+                    result.join(self.invoke(
+                        node,
+                        new,
+                        matches!(callee, Expression::Super(_)),
+                        state.env.clone(),
+                    ));
+                }
+                return result.possible_throw(&state.env, coercion_errors);
+            }
             if models
                 .iter()
                 .any(|model| arguments.len() < model.min_arguments)
