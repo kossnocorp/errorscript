@@ -26,6 +26,21 @@ impl RunAsync for EscCliCmdBuild {
 
         project.check_files().await?;
 
+        if let EscProjectState::Checked(state) = &project.state {
+            let resolved_sccs = state
+                .call_graph
+                .sccs
+                .iter()
+                .map(|members| {
+                    members
+                        .iter()
+                        .map(|id| &state.call_graph.graph[id.node()])
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            println!("Resolved function SCCs: {resolved_sccs:#?}");
+        }
+
         Ok(())
     }
 }
