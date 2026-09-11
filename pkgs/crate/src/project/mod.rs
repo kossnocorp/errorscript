@@ -137,6 +137,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn negative_patterns_override_tsconfig_and_imports() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("src/nested")).unwrap();
+        std::fs::write(
+            root.join("tsconfig.json"),
+            r#"{"files":["other.ts","src/direct.test.ts"],"include":["**/*.ts"],"exclude":["src/entry.ts"]}"#,
+        )
+        .unwrap();
+        for (path, source) in [
+            (
+                "src/entry.ts",
+                "import './direct.test'; import './dependency';",
+            ),
+            ("src/dependency.ts", "import './nested/deep.test';"),
+            ("src/direct.test.ts", "export const test = true;"),
+            ("src/nested/deep.test.ts", "export const test = true;"),
+            ("other.ts", "export const other = true;"),
+        ] {
+            std::fs::write(root.join(path), source).unwrap();
+        }
+        for patterns in [
+            r#"["src/**/*.ts", "!src/**/*.test.ts"]"#,
+            r#"["!src/**/*.test.ts", "src/**/*.ts", "src/direct.test.ts"]"#,
+        ] {
+            std::fs::write(root.join("errconfig.toml"), format!("files = {patterns}")).unwrap();
+            let mut project = EscProject::resolve(Some(&root.to_path_buf()))
+                .await
+                .unwrap();
+            let expected = [root.join("src/entry.ts"), root.join("src/dependency.ts")];
+            assert_eq!(
+                project.files().await.unwrap(),
+                module_paths(expected.clone())
+            );
+            project.parse_files().await.unwrap();
+            let EscProjectState::Parsed(state) = &project.state else {
+                panic!("Expected parsed state");
+            };
+            assert_eq!(
+                state.parsed_files.keys().cloned().collect::<HashSet<_>>(),
+                module_ids(&project, expected)
+            );
+            project.check_files().await.unwrap();
+        }
+        for patterns in ["[]", r#"["!src/**/*.test.ts"]"#] {
+            std::fs::write(root.join("errconfig.toml"), format!("files = {patterns}")).unwrap();
+            let project = EscProject::resolve(Some(&root.to_path_buf()))
+                .await
+                .unwrap();
+            assert!(project.files().await.unwrap().is_empty());
+        }
+        for patterns in [r#"["src/**/*.ts", "![invalid"]"#, r#"["!"]"#] {
+            std::fs::write(root.join("errconfig.toml"), format!("files = {patterns}")).unwrap();
+            let project = EscProject::resolve(Some(&root.to_path_buf()))
+                .await
+                .unwrap();
+            assert!(project.files().await.is_err());
+        }
+    }
+
+    #[tokio::test]
     async fn uses_tsconfig_when_errconfig_files_are_undefined() {
         let project_dir = tempdir().unwrap();
         let src_dir = project_dir.path().join("src");

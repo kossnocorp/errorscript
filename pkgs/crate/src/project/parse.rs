@@ -4,7 +4,8 @@ use std::collections::VecDeque;
 
 impl EscProject {
     pub async fn parse_files(&mut self) -> Result<()> {
-        let mut files = self.files().await?.into_iter().collect::<VecDeque<_>>();
+        let (files, excluded) = self.files_with_exclusions().await?;
+        let mut files = files.into_iter().collect::<VecDeque<_>>();
         let mut parsed_files = HashMap::new();
         let mut scheduled = HashSet::new();
         let mut tasks = tokio::task::JoinSet::new();
@@ -15,7 +16,7 @@ impl EscProject {
             while tasks.len() < workers
                 && let Some(path) = files.pop_front()
             {
-                if !scheduled.insert(path.clone()) {
+                if excluded.contains(&path) || !scheduled.insert(path.clone()) {
                     continue;
                 }
                 let resolver = resolver.clone();
