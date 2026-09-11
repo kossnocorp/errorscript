@@ -39,7 +39,9 @@ fn errors(project: &EscProject, module: &str, name: &str) -> Types {
             graph[node].module_id.as_str() == module && graph[node].name.as_deref() == Some(name)
         })
         .unwrap();
-    checked.errors[&EscFnId::new(graph[node].module_id.clone(), node)].clone()
+    checked.errors[&EscFnId::new(graph[node].module_id.clone(), node)]
+        .clone()
+        .into()
 }
 
 fn builtins(names: &[&'static str]) -> Types {

@@ -10,15 +10,23 @@ use oxc_syntax::{node::NodeId, symbol::SymbolId};
 use std::cell::RefCell;
 
 mod arguments;
+
+mod bindings;
+
 mod expression;
+
 mod queue;
+pub use queue::resolve_errors;
+
 mod statement;
+
 #[cfg(test)]
 mod tests;
-mod types;
-pub(crate) use queue::resolve_errors;
 
-type Types = HashSet<EscErrorType>;
+mod types;
+
+mod set;
+use set::Types;
 /// Persistent environments share unchanged branches and copy only changed
 /// tree nodes. This also makes completion joins proportional to their diff.
 type Env = im::OrdMap<SymbolId, Value>;
@@ -38,19 +46,19 @@ struct Value {
 }
 
 impl Value {
-    fn types(types: Types) -> Self {
+    fn types(types: impl Into<Types>) -> Self {
         Self {
-            types,
+            types: types.into(),
             nonglobal: true,
             truth: 3,
             ..Self::default()
         }
     }
     fn builtin(name: &'static str) -> Self {
-        Self::types(HashSet::from([EscErrorType::builtin(name)]))
+        Self::types(Types::from([EscErrorType::builtin(name)]))
     }
     fn unknown() -> Self {
-        Self::types(HashSet::from([EscErrorType::UNKNOWN]))
+        Self::types(Types::from([EscErrorType::UNKNOWN]))
     }
     fn global(global: &EscGlobal) -> Self {
         if !matches!(global.value_type, "Function" | "object") {
@@ -76,13 +84,13 @@ impl Value {
         }
     }
     fn plain_primitive(&self) -> bool {
-        self.types.iter().all(|ty| matches!(ty, EscErrorType::Buildin(name) if matches!(name.as_str(), "number" | "string" | "boolean" | "undefined" | "null")))
+        self.types.plain_primitive()
     }
     fn join(&mut self, other: Self) {
-        join_set(&mut self.types, other.types);
-        join_set(&mut self.deferred, other.deferred);
-        join_set(&mut self.awaited, other.awaited);
-        join_set(&mut self.elements, other.elements);
+        self.types.join(other.types);
+        self.deferred.join(other.deferred);
+        self.awaited.join(other.awaited);
+        self.elements.join(other.elements);
         join_set(&mut self.globals, other.globals);
         self.nonglobal |= other.nonglobal;
         self.truth |= other.truth;
@@ -216,14 +224,14 @@ struct Summary {
 
 impl Summary {
     fn join(&mut self, other: Self) {
-        join_set(&mut self.errors, other.errors);
+        self.errors.join(other.errors);
         self.returned.join(other.returned);
         self.completes |= other.completes;
     }
 }
 
 struct Analyzer<'s, 'a> {
-    mutation_cache: RefCell<HashMap<SymbolId, bool>>,
+    bindings: &'s bindings::BindingFacts,
     modules: &'s queue::Modules,
     module: &'s EscModuleId,
     semantic: &'s Semantic<'a>,
@@ -337,30 +345,6 @@ impl Analyzer<'_, '_> {
             .and_then(|id| self.semantic.scoping().get_reference(id).symbol_id())
     }
 
-    fn captured_mutation(&self, symbol: SymbolId) -> bool {
-        if let Some(value) = self.mutation_cache.borrow().get(&symbol) {
-            return *value;
-        }
-        let owner = |mut node| loop {
-            match self.semantic.nodes().kind(node) {
-                AstKind::Function(_)
-                | AstKind::ArrowFunctionExpression(_)
-                | AstKind::Program(_) => break node,
-                _ => node = self.semantic.nodes().parent_id(node),
-            }
-        };
-        let declaration_owner = owner(self.semantic.scoping().symbol_declaration(symbol));
-        let mutated = self
-            .semantic
-            .scoping()
-            .get_resolved_references(symbol)
-            .any(|reference| {
-                reference.is_write() && owner(reference.node_id()) != declaration_owner
-            });
-        self.mutation_cache.borrow_mut().insert(symbol, mutated);
-        mutated
-    }
-
     fn read(&self, id: &IdentifierReference<'_>, env: Env) -> Flow {
         let Some(symbol) = self.symbol(id) else {
             if let Some(global) = self.graph.global(id.name.as_str()) {
@@ -379,10 +363,8 @@ impl Analyzer<'_, '_> {
             if EscGlobals::get(id.name.as_str()).is_some() {
                 return flow;
             }
-            return flow.possible_throw(
-                &env,
-                HashSet::from([EscErrorType::builtin("ReferenceError")]),
-            );
+            return flow
+                .possible_throw(&env, Types::from([EscErrorType::builtin("ReferenceError")]));
         };
         if let Some(value) = env.get(&symbol).cloned() {
             return Flow::normal(env, value);
@@ -408,7 +390,7 @@ impl Analyzer<'_, '_> {
         };
         self.reading.borrow_mut().remove(&symbol);
         value.map_or_else(Flow::default, |mut value| {
-            if self.semantic.scoping().symbol_is_mutated(symbol) {
+            if self.bindings.is_mutated(symbol) {
                 value.join(Value::unknown());
             }
             Flow::normal(env, value)

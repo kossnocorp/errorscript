@@ -14,6 +14,7 @@ impl RunAsync for EscCliCmdBuild {
 
         project.parse_files().await?;
 
+        /*
         if let EscProjectState::Parsed(state) = &project.state {
             let mut processed_modules = state
                 .parsed_files
@@ -23,9 +24,11 @@ impl RunAsync for EscCliCmdBuild {
             processed_modules.sort_unstable();
             println!("Processed modules: {processed_modules:#?}");
         }
+        */
 
         project.check_files().await?;
 
+        /*
         if let EscProjectState::Checked(state) = &project.state {
             let resolved_sccs = state
                 .call_graph
@@ -52,6 +55,7 @@ impl RunAsync for EscCliCmdBuild {
                 .collect::<Vec<_>>();
             println!("Resolved function errors: {resolved_errors:#?}");
         }
+        */
 
         Ok(())
     }

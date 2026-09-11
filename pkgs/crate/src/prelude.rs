@@ -6,7 +6,7 @@ pub use std::ffi::OsString;
 pub use std::fmt::Debug;
 pub use std::fmt::{Display, Formatter};
 pub use std::path::{Path, PathBuf};
-pub use std::sync::{Arc, RwLock};
+pub use std::sync::Arc;
 
 pub use anyhow::{Context, Error, Result, bail, ensure};
 pub use serde::{Deserialize, Serialize};

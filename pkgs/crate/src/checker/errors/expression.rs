@@ -4,7 +4,7 @@ use oxc_syntax::operator::{LogicalOperator, UnaryOperator};
 impl Analyzer<'_, '_> {
     pub(super) fn unknown(&self, env: Env) -> Flow {
         Flow::normal(env.clone(), Value::unknown())
-            .possible_throw(&env, HashSet::from([EscErrorType::UNKNOWN]))
+            .possible_throw(&env, Types::from([EscErrorType::UNKNOWN]))
     }
 
     pub(super) fn expr(&self, expression: &Expression<'_>, env: Env) -> Flow {
@@ -76,7 +76,7 @@ impl Analyzer<'_, '_> {
                         }
                         let env = state.env.clone();
                         let flow = self.assign(&assignment.left, state.env, value);
-                        if safe { flow } else { flow.possible_throw(&env, HashSet::from([EscErrorType::UNKNOWN])) }
+                        if safe { flow } else { flow.possible_throw(&env, Types::from([EscErrorType::UNKNOWN])) }
                     })
                 })
             }
@@ -87,7 +87,7 @@ impl Analyzer<'_, '_> {
                         let value = Value::builtin("number");
                         if let Some(symbol) = self.symbol(id) { state.env.insert(symbol, value.clone()); }
                         let flow = Flow::normal(state.env.clone(), value);
-                        if safe { flow } else { flow.possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN])) }
+                        if safe { flow } else { flow.possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN])) }
                     })
                 } else { self.unknown(env) }
             }
@@ -105,7 +105,7 @@ impl Analyzer<'_, '_> {
                 let flow = Flow::normal(state.env.clone(), value);
                 if matches!(unary.operator, UnaryOperator::LogicalNot | UnaryOperator::Typeof | UnaryOperator::Void)
                     || (unary.operator != UnaryOperator::Delete && state.value.plain_primitive()) { flow }
-                else { flow.possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN])) }
+                else { flow.possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN])) }
             }),
             Expression::BinaryExpression(binary) => self.expr(&binary.left, env).then(|left| {
                 self.expr(&binary.right, left.env).then(|right| {
@@ -128,7 +128,7 @@ impl Analyzer<'_, '_> {
                         && self.graph.type_references.get(&EscErrorId { module_id: self.module.clone(), node: binary.node_id.get() })
                             .is_some_and(|types| !types.contains(&EscErrorType::UNKNOWN)));
                     if safe { flow }
-                    else { flow.possible_throw(&right.env, HashSet::from([EscErrorType::UNKNOWN])) }
+                    else { flow.possible_throw(&right.env, Types::from([EscErrorType::UNKNOWN])) }
                 })
             }),
             Expression::AwaitExpression(awaited) => self.expr(&awaited.argument, env).then(|state| {
@@ -139,14 +139,14 @@ impl Analyzer<'_, '_> {
                 types.extend(state.value.awaited);
                 let mut flow = if types.is_empty() { Flow::default() } else { Flow::normal(state.env.clone(), Value::types(types)) };
                 if promise { flow = flow.possible_throw(&state.env, state.value.deferred); }
-                if unknown { flow = flow.possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN])); }
+                if unknown { flow = flow.possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN])); }
                 flow
             }),
             Expression::YieldExpression(yielded) => {
                 let flow = yielded.argument.as_ref().map_or_else(|| Flow::normal(env.clone(), Value::undefined()), |expr| self.expr(expr, env.clone()));
                 flow.then(|state| {
                     let flow = Flow::normal(state.env.clone(), Value::unknown());
-                    if yielded.delegate { flow.possible_throw(&state.env, state.value.deferred).possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN])) }
+                    if yielded.delegate { flow.possible_throw(&state.env, state.value.deferred).possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN])) }
                     else { flow }
                 })
             }
@@ -311,7 +311,7 @@ impl Analyzer<'_, '_> {
                 .iter()
                 .any(|model| arguments.len() < model.min_arguments)
             {
-                let errors = models
+                let errors: Types = models
                     .iter()
                     .filter(|model| arguments.len() < model.min_arguments)
                     .flat_map(|model| model.missing_arguments_errors.iter().cloned())
@@ -340,22 +340,7 @@ impl Analyzer<'_, '_> {
         // Function summaries don't yet carry writes to captured bindings.
         // Widen potentially mutated values instead of preserving stale types.
         if call.unresolved || !call.targets.is_empty() {
-            let mutated = env
-                .iter()
-                .filter(|(_, value)| {
-                    !value.nonglobal
-                        || value.truth != 3
-                        || !value.types.contains(&EscErrorType::UNKNOWN)
-                })
-                .filter(|(symbol, _)| self.captured_mutation(**symbol))
-                .map(|(symbol, _)| *symbol)
-                .collect::<Vec<_>>();
-            for symbol in mutated {
-                let value = env.get_mut(&symbol).unwrap();
-                value.types.insert(EscErrorType::UNKNOWN);
-                value.nonglobal = true;
-                value.truth = 3;
-            }
+            self.bindings.widen(&mut env);
         }
         if !new
             && !super_call
@@ -435,12 +420,12 @@ impl Analyzer<'_, '_> {
                 if summary.completes {
                     let value = if new || super_call {
                         let fallback = if call.constructed_types.is_empty() {
-                            HashSet::from([EscErrorType::Node(EscErrorId {
+                            Types::from([EscErrorType::Node(EscErrorId {
                                 module_id: function.module_id.clone(),
                                 node: function.node_id,
                             })])
                         } else {
-                            call.constructed_types.clone()
+                            Types::from(call.constructed_types.clone())
                         };
                         let mut value = summary.returned.clone();
                         let mut uses_instance = false;

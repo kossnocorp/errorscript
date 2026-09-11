@@ -89,7 +89,7 @@ impl Analyzer<'_, '_> {
                 value
             }
             TSType::TSTypeLiteral(literal) => {
-                Value::types(HashSet::from([EscErrorType::Node(EscErrorId {
+                Value::types(Types::from([EscErrorType::Node(EscErrorId {
                     module_id: module.clone(),
                     node: literal.node_id.get(),
                 })]))
@@ -134,7 +134,7 @@ impl Analyzer<'_, '_> {
 
     fn expand_alias(&self, ty: &EscErrorType, visiting: &mut HashSet<EscErrorId>) -> Value {
         let EscErrorType::Node(id) = ty else {
-            return Value::types(HashSet::from([ty.clone()]));
+            return Value::types(Types::from([ty.clone()]));
         };
         if !visiting.insert(id.clone()) {
             return Value::unknown();
@@ -154,7 +154,7 @@ impl Analyzer<'_, '_> {
                             visiting,
                         )
                     } else {
-                        Value::types(HashSet::from([ty.clone()]))
+                        Value::types(Types::from([ty.clone()]))
                     }
                 })
             });
@@ -180,9 +180,8 @@ impl Analyzer<'_, '_> {
         }
         for ty in value.types.iter().filter(|_| value.nonglobal) {
             if let EscErrorType::Buildin(instance) = ty
-                && let Some(global) = self
-                    .graph
-                    .global(&format!("{}.prototype.{name}", instance.as_str()))
+                && let Some(global) = EscGlobals::prototype_property(instance.as_str(), name)
+                    .and_then(|global| self.graph.global(global.path))
             {
                 result.join(Value::global(global));
                 errors.extend(global.read_errors.iter().cloned());

@@ -97,7 +97,7 @@ impl Analyzer<'_, '_> {
             Statement::ForInStatement(statement) => self.expr(&statement.right, env).then(|state| {
                 self.for_left(&statement.left, state.env.clone(), Value::builtin("string")).then(|state| {
                     self.loop_body(state.env, None, None, &statement.body, false, true, label)
-                }).possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN]))
+                }).possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN]))
             }),
             Statement::SwitchStatement(statement) => self.expr(&statement.discriminant, env).then(|state| {
                 let mut result = Flow::default();
@@ -125,7 +125,7 @@ impl Analyzer<'_, '_> {
             Statement::ClassDeclaration(class) => self.class_definition(class, env),
             Statement::WithStatement(statement) => self.expr(&statement.object, env).then(|state| {
                 self.statement(&statement.body, state.env.clone(), None)
-                    .possible_throw(&state.env, HashSet::from([EscErrorType::UNKNOWN]))
+                    .possible_throw(&state.env, Types::from([EscErrorType::UNKNOWN]))
             }),
             Statement::FunctionDeclaration(_) | Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
             | Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => Flow::normal(env, Value::undefined()),

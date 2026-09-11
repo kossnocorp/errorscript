@@ -7,14 +7,16 @@ use std::{
     collections::VecDeque,
     rc::Rc,
     sync::{
-        Mutex, RwLock,
+        Mutex, OnceLock, RwLock,
         atomic::{AtomicBool, Ordering},
     },
 };
 use tokio::task::JoinSet;
 
 type Sources = Arc<HashMap<EscModuleId, (Arc<String>, SourceType)>>;
-type Store = Arc<RwLock<HashMap<EscFnId, (Summary, u64)>>>;
+// Function graph indices are dense and snapshot-local. Summary lookup needs no
+// hashing of the module-qualified ID; read versions remain per function.
+type Store = Arc<RwLock<Vec<(Summary, u64)>>>;
 // Large bundles contain thousands of independent SCCs. Two exclusively owned
 // arenas let them overlap without replicating the bundle across every worker.
 const MODULE_CONCURRENCY: usize = 2;
@@ -56,7 +58,7 @@ impl Summaries {
             self.local_read.set(true);
             return summary.clone();
         }
-        let (summary, version) = self.store.read().unwrap()[id].clone();
+        let (summary, version) = self.store.read().unwrap()[id.node().index()].clone();
         self.reads
             .borrow_mut()
             .entry(id.clone())
@@ -174,6 +176,7 @@ impl Ready {
 }
 
 struct Shared {
+    bindings: HashMap<EscModuleId, OnceLock<bindings::BindingFacts>>,
     sources: Sources,
     pool: ModulePool,
     graph: Arc<EscCallGraph>,
@@ -210,7 +213,7 @@ fn work(job: Job, shared: Arc<Shared>) -> Result<(Worker, Output)> {
             let stored = store.read().unwrap();
             component
                 .iter()
-                .map(|id| (id.clone(), stored[id].0.clone()))
+                .map(|id| (id.clone(), stored[id.node().index()].0.clone()))
                 .collect()
         }),
         reads: RefCell::new(HashMap::new()),
@@ -234,8 +237,10 @@ fn work(job: Job, shared: Arc<Shared>) -> Result<(Worker, Output)> {
             let function = &graph.graph[id.node()];
             let module = modules.get(&function.module_id).unwrap();
             let next = module.with_semantic(|result| {
+                let bindings = shared.bindings[&function.module_id]
+                    .get_or_init(|| bindings::BindingFacts::new(&result.semantic));
                 Analyzer {
-                    mutation_cache: RefCell::new(HashMap::new()),
+                    bindings,
                     modules: &modules,
                     module: &function.module_id,
                     semantic: &result.semantic,
@@ -299,12 +304,16 @@ fn work(job: Job, shared: Arc<Shared>) -> Result<(Worker, Output)> {
     Ok((worker, output))
 }
 
-pub(crate) async fn resolve_errors(
+pub async fn resolve_errors(
     parsed: &EscProjectStateParsed,
     graph: &EscCallGraph,
-) -> Result<HashMap<EscFnId, Types>> {
+) -> Result<HashMap<EscFnId, HashSet<EscErrorType>>> {
     let workers = std::thread::available_parallelism().map_or(1, usize::from);
-    resolve_with_workers(parsed, graph, workers).await
+    Ok(resolve_with_workers(parsed, graph, workers)
+        .await?
+        .into_iter()
+        .map(|(id, types)| (id, types.into_iter().collect()))
+        .collect())
 }
 
 pub(super) async fn resolve_with_workers(
@@ -326,14 +335,10 @@ pub(super) async fn resolve_with_workers(
     );
     let arguments = arguments::Arguments::new(parsed, graph);
     let graph = Arc::new(graph.clone());
-    let store: Store = Arc::new(RwLock::new(
-        graph
-            .sccs
-            .iter()
-            .flatten()
-            .map(|id| (id.clone(), (Summary::default(), 0)))
-            .collect(),
-    ));
+    let store: Store = Arc::new(RwLock::new(vec![
+        (Summary::default(), 0);
+        graph.graph.node_count()
+    ]));
     let mut dependencies = vec![HashSet::new(); count];
     let mut dependents = vec![HashSet::new(); count];
     let mut readers: HashMap<EscFnId, HashSet<usize>> = HashMap::new();
@@ -354,6 +359,12 @@ pub(super) async fn resolve_with_workers(
     let cancelled = Arc::new(AtomicBool::new(false));
     let _cancel_on_drop = CancelOnDrop(cancelled.clone());
     let shared = Arc::new(Shared {
+        bindings: parsed
+            .parsed_files
+            .keys()
+            .cloned()
+            .map(|id| (id, OnceLock::new()))
+            .collect(),
         sources,
         pool: Arc::new(Mutex::new(HashMap::new())),
         graph: graph.clone(),
@@ -467,12 +478,12 @@ pub(super) async fn resolve_with_workers(
                             .entry(id.clone())
                             .or_default()
                             .insert(result.component);
-                        if stored[id].1 != *version {
+                        if stored[id.node().index()].1 != *version {
                             next_dirty.insert(result.component);
                         }
                     }
                     for (id, summary) in result.summaries {
-                        let (current, version) = stored.get_mut(&id).unwrap();
+                        let (current, version) = &mut stored[id.node().index()];
                         let previous = current.clone();
                         current.join(summary);
                         if *current != previous {
@@ -516,7 +527,7 @@ pub(super) async fn resolve_with_workers(
             next_dirty.retain(|component| {
                 observed_reads[*component]
                     .iter()
-                    .any(|(id, version)| stored[id].1 != *version)
+                    .any(|(id, version)| stored[id.node().index()].1 != *version)
                     || graph.sccs[*component]
                         .iter()
                         .any(|id| inputs.get(id) != observed_inputs[*component].get(id))
@@ -528,7 +539,14 @@ pub(super) async fn resolve_with_workers(
         .read()
         .unwrap()
         .iter()
-        .map(|(id, (summary, _))| (id.clone(), summary.errors.clone()))
+        .enumerate()
+        .map(|(index, (summary, _))| {
+            let node = petgraph::graph::NodeIndex::new(index);
+            (
+                EscFnId::new(graph.graph[node].module_id.clone(), node),
+                summary.errors.clone(),
+            )
+        })
         .collect();
     Ok(result)
 }
@@ -536,6 +554,48 @@ pub(super) async fn resolve_with_workers(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dense_summary_reads_retain_earliest_versions_and_local_updates() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("module.ts");
+        std::fs::write(&path, "").unwrap();
+        let repo = EscRepoPath::try_new(dir.path().to_path_buf()).unwrap();
+        let module = EscModuleId::from_path(&EscModulePath::try_new(path).unwrap(), &repo).unwrap();
+        let external = EscFnId::new(module.clone(), petgraph::graph::NodeIndex::new(0));
+        let local = EscFnId::new(module, petgraph::graph::NodeIndex::new(1));
+        let store = Arc::new(RwLock::new(vec![(Summary::default(), 7)]));
+        let summaries = Summaries {
+            store: store.clone(),
+            local: RefCell::new(HashMap::from([(local.clone(), Summary::default())])),
+            reads: RefCell::new(HashMap::new()),
+            local_read: std::cell::Cell::new(false),
+        };
+        assert!(!summaries.get(&external).completes);
+        store.write().unwrap()[0] = (
+            Summary {
+                completes: true,
+                ..Summary::default()
+            },
+            8,
+        );
+        assert!(summaries.get(&external).completes);
+        assert_eq!(summaries.reads.borrow()[&external], 7);
+        assert_ne!(
+            summaries.reads.borrow()[&external],
+            store.read().unwrap()[0].1
+        );
+        assert!(!summaries.get(&local).completes);
+        summaries
+            .local
+            .borrow_mut()
+            .get_mut(&local)
+            .unwrap()
+            .completes = true;
+        assert!(summaries.get(&local).completes);
+        assert!(summaries.local_read.get());
+        assert!(!summaries.reads.borrow().contains_key(&local));
+    }
 
     #[test]
     fn affinity_requeue_keeps_one_fallback_entry_and_releases_blocked_work() {
