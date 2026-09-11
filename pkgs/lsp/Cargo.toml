@@ -1,0 +1,20 @@
+[package]
+name = "errorscript-lsp"
+version = "0.0.0"
+edition = "2024"
+description = "ErrorScript language server"
+license = "MIT"
+repository = "https://github.com/kossnocorp/errorscript"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", features = ["tokio_rt"] }
+napi-derive = "3"
+tokio = { version = "1", features = ["io-std", "macros", "sync"] }
+tower = { version = "0.4", features = ["limit", "util"] }
+tower-lsp = "0.20"
+
+[build-dependencies]
+napi-build = "2"

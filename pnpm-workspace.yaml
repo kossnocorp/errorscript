@@ -4,3 +4,8 @@ packages:
 
 minimumReleaseAgeExclude:
   - "@js-fns/dev@0.3.4 || 0.3.5"
+
+allowBuilds:
+  esbuild: true
+  "@vscode/vsce-sign": false
+  keytar: false

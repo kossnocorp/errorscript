@@ -1,6 +1,12 @@
 # Rust
 /target/
+
 # Node.js
 node_modules/
+
+# TypeScript
+.ts/
+
 # Dist
 /pkgs/*/dist/
+/pkgs/vscode/*.vsix

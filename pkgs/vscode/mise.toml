@@ -1,0 +1,5 @@
+[tasks.build]
+run = "pnpm run build"
+
+[tasks.check]
+run = "pnpm run check"

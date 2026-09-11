@@ -1,0 +1,35 @@
+{
+  "name": "@errorscript/lsp",
+  "version": "0.0.0",
+  "description": "ErrorScript native language server",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./server": "./dist/server.cjs"
+  },
+  "scripts": {
+    "build": "napi build --platform --release --output-dir dist && node build.ts",
+    "check": "tsc --build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.0.0",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.0.0"
+  },
+  "napi": {
+    "binaryName": "errorscript-lsp"
+  }
+}

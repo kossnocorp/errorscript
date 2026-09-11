@@ -1,4 +1,9 @@
 {
   "include": [],
-  "references": [{ "path": "./pkgs/crate" }, { "path": "./pkgs/npm" }]
+  "references": [
+    { "path": "./pkgs/crate" },
+    { "path": "./pkgs/npm" },
+    { "path": "./pkgs/lsp" },
+    { "path": "./pkgs/vscode" }
+  ]
 }

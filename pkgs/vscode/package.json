@@ -1,0 +1,40 @@
+{
+  "name": "errorscript-vscode",
+  "displayName": "ErrorScript",
+  "version": "0.0.0",
+  "description": "ErrorScript language features alongside TypeScript and JavaScript",
+  "categories": [
+    "Programming Languages"
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/kossnocorp/errorscript",
+  "publisher": "errorscript",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "pnpm --filter @errorscript/lsp build && node build.ts",
+    "check": "tsc --build",
+    "vscode:prepublish": "pnpm run build",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@errorscript/lsp": "workspace:*",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^7.0.2"
+  },
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  }
+}
