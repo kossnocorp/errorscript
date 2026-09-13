@@ -1,0 +1,171 @@
+---
+import Layout from "#/ui/layouts/Layout.astro";
+import GitHubIcon from "#/assets/github-original.svg";
+---
+
+<Layout
+  title="ErrorScript - Typed Errors in TypeScript"
+  description="Typed errors in TypeScript without verbosity. ErrorScript makes failure part of the conversation, so you can write code with confidence."
+>
+  <div class="page">
+    <main class="landing">
+      <section class="section hero">
+        <header class="heading">
+          <h1>ErrorScript</h1>
+
+          <p class="subheadline">Typed Errors in TypeScript</p>
+        </header>
+
+        <p class="description">
+          Explicit error handling in TypeScript without verbosity and
+          complexity.
+        </p>
+
+        <nav class="links">
+          <ul>
+            <li>
+              <a href="https://github.com/kossnocorp/errorscript" class="link">
+                <GitHubIcon class="icon" />GitHub
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </section>
+
+      <section class="section why">
+        <h2><i>Effective</i> Error Handling</h2>
+
+        <p>
+          <a href="https://effect.website/">Effect</a> is great. t not only gives
+          missing errors-as-values but also provides production-ready architecture.
+        </p>
+
+        <p>
+          It deserves all the love and praise, but it is undeniable that it
+          forces you to adopt it entirely if you want to benefit from it and
+          trade simplicity for robustness.
+        </p>
+
+        <p>
+          And that's the price you have to pay to get typed errors. Or have you?
+        </p>
+
+        <p>
+          ErrorScript offers a simpler alternative that utilizes the blazing
+          fast Oxc compiler and statically analyzes every function call and
+          figures out the exact errors it can throw.
+        </p>
+
+        <p>
+          It sounds impossible, and there's a reason why nobody has achieved it
+          so far, but it actually can be done. In fact, I did it.
+        </p>
+
+        <p>
+          Currently ErrorScript is in the prototype stage, but it is already
+          apparent that it will work. All that's left is a ton of work, but
+          nowadays it's not a problem, right?
+        </p>
+
+        <p>
+          Interested? <a href="https://x.com/kossnocorp" class="link"
+            >Contact me on X</a
+          >.
+        </p>
+
+        <p><i>— <a href="https://koss.nocorp.me" class="link">Sasha</a></i></p>
+      </section>
+    </main>
+
+    <footer>
+      Sasha Koss © 2026 <a href="https://koss.nocorp.me/mit" class="link"
+        >MIT License</a
+      >
+    </footer>
+  </div>
+</Layout>
+
+<style>
+  @reference "#/ui/styles/global.css";
+
+  .page {
+    @apply w-full max-w-5xl px-6 py-12 sm:px-12 sm:py-20 flex flex-col gap-20;
+  }
+
+  .landing {
+    @apply flex flex-col gap-12;
+  }
+
+  .section {
+    @apply flex flex-col gap-4;
+  }
+
+  .why {
+    @apply prose dark:prose-invert gap-5 max-w-xl;
+
+    /* Let the flex gap control spacing instead of prose's block margins. */
+    & > :where(*) {
+      @apply my-0;
+    }
+
+    & > :where(h2, h3, h4, h5, h6):not(:first-child) {
+      @apply mt-4;
+    }
+  }
+
+  h1 {
+    @apply text-5xl sm:text-7xl font-bold text-(--color-heading-1);
+  }
+
+  h2 {
+    @apply text-xl font-bold text-(--color-heading-2);
+  }
+
+  h3 {
+    @apply text-base font-bold text-(--color-heading-3);
+  }
+
+  .hero {
+    & .heading {
+      @apply flex flex-col gap-2;
+
+      & .subheadline {
+        @apply text-xl font-semibold text-(--color-heading-2);
+      }
+    }
+
+    & .description,
+    & .links {
+      @apply text-balance max-w-xl;
+    }
+
+    & .description {
+      @apply text-(--color-text) text-lg;
+    }
+  }
+
+  .points {
+    @apply flex flex-col gap-2 text-balance max-w-xl;
+
+    & dt,
+    & dd {
+      @apply my-0;
+    }
+
+    & dd + dt {
+      @apply mt-4;
+    }
+
+    & dt {
+      @apply font-semibold text-(--color-heading-2);
+    }
+
+    & dd {
+      @apply ms-0 text-base text-balance text-(--color-text);
+    }
+  }
+
+  footer {
+    @apply opacity-70 hover:opacity-100;
+  }
+</style>

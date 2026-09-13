@@ -7,5 +7,6 @@ minimumReleaseAgeExclude:
 
 allowBuilds:
   esbuild: true
+  workerd: true
   "@vscode/vsce-sign": false
   keytar: false
