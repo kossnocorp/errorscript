@@ -1,0 +1,49 @@
+{
+  "name": "errorscript-ts7-editor-poc",
+  "displayName": "ErrorScript TypeScript 7 PoC",
+  "version": "0.0.0",
+  "private": true,
+  "publisher": "errorscript",
+  "main": "./extension.cjs",
+  "scripts": {
+    "check": "pnpm --workspace-root exec tsc --build pkgs/ts/examples/editor"
+  },
+  "dependencies": {
+    "@errorscript/ts": "workspace:*",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.95.0"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "errorscript-typescript",
+        "aliases": [
+          "ErrorScript (TypeScript 7 PoC)"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "errorscript-typescript",
+        "scopeName": "source.errorscript.ts",
+        "path": "./syntax.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "errorscript-ts7.virtualDocument",
+        "title": "ErrorScript TS7: Show Transformed Source"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onLanguage:errorscript-typescript"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  }
+}

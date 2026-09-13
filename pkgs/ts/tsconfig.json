@@ -1,5 +1,9 @@
 {
   "extends": "../../tsconfig.pkg.json",
-  "compilerOptions": { "allowJs": true, "types": ["node"] },
-  "include": ["src/**/*.js", "test/**/*.js"]
+  "compilerOptions": {
+    "allowJs": true,
+    "types": ["node"],
+    "paths": { "typescript": ["./node_modules/typescript-legacy"] }
+  },
+  "include": ["src/**/*.js", "src/**/*.cjs", "test/**/*.js"]
 }

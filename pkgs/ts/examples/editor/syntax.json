@@ -1,0 +1,4 @@
+{
+  "scopeName": "source.errorscript.ts",
+  "patterns": [{ "include": "source.ts" }]
+}

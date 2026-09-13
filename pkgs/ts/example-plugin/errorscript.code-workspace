@@ -1,0 +1,7 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    "typescript.tsdk": "../node_modules/typescript-legacy/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+  },
+}

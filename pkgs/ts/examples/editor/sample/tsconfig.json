@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleDetection": "force",
+    "strict": true,
+    "noEmit": true,
+    "types": [],
+    "plugins": [{ "name": "@errorscript/ts" }]
+  },
+  "include": ["*.ts"]
+}

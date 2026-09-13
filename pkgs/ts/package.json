@@ -1,22 +1,30 @@
 {
   "name": "@errorscript/ts",
   "version": "0.0.0",
-  "description": "ErrorScript TypeScript content mapper proof of concept",
+  "description": "ErrorScript TypeScript plugin and content mapper proof of concept",
   "license": "MIT",
   "files": [
     "src"
   ],
   "type": "module",
+  "main": "./src/plugin.cjs",
   "scripts": {
-    "check": "tsc --build",
-    "example": "tsc --project example --runExternalCode",
+    "check": "pnpm --workspace-root exec tsc --build pkgs/ts",
+    "example": "pnpm --workspace-root exec tsc --project pkgs/ts/example --runExternalCode",
+    "test:plugin": "node --test test/plugin.test.js",
+    "test:editor": "node --test test/editor.test.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "vscode-jsonrpc": "^8.2.1"
+    "@volar/typescript": "2.4.28",
+    "typescript": "7.1.0-dev.20260913.1",
+    "vscode-jsonrpc": "^8.2.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "typescript-legacy": "npm:typescript@6.0.3"
   },
   "typescript": {
     "contentMapper": {
