@@ -249,6 +249,7 @@ fn work(job: Job, shared: Arc<Shared>) -> Result<(Worker, Output)> {
                     summaries: &summaries,
                     reading: RefCell::new(HashSet::new()),
                     arguments: &arguments,
+                    capture: None,
                 }
                 .function(function, id)
             });
@@ -321,6 +322,160 @@ pub(super) async fn resolve_with_workers(
     graph: &EscCallGraph,
     workers: usize,
 ) -> Result<HashMap<EscFnId, Types>> {
+    Ok(resolve_summaries(parsed, graph, workers)
+        .await?
+        .into_iter()
+        .map(|(id, summary)| (id, summary.errors))
+        .collect())
+}
+
+pub(crate) async fn resolve_call_errors(
+    parsed: &EscProjectStateParsed,
+    graph: &EscCallGraph,
+) -> Result<(
+    HashMap<EscFnId, HashSet<EscErrorType>>,
+    HashMap<(EscModuleId, NodeId), EscCallErrors>,
+)> {
+    let summaries = resolve_summaries(
+        parsed,
+        graph,
+        std::thread::available_parallelism().map_or(1, usize::from),
+    )
+    .await?;
+    let errors = summaries
+        .iter()
+        .map(|(id, summary)| (id.clone(), summary.errors.iter().cloned().collect()))
+        .collect();
+    let sources = Arc::new(
+        parsed
+            .parsed_files
+            .iter()
+            .map(|(id, module)| (id.clone(), module.analysis_source()))
+            .collect(),
+    );
+    let modules = Modules {
+        sources,
+        pool: Arc::new(Mutex::new(HashMap::new())),
+        cache: RefCell::new(HashMap::new()),
+    };
+    let summaries = Summaries {
+        store: Arc::new(RwLock::new(Vec::new())),
+        local: RefCell::new(summaries),
+        reads: RefCell::new(HashMap::new()),
+        local_read: std::cell::Cell::new(false),
+    };
+    // Open-world values keep hovers available for uncalled functions. Explicit
+    // annotations and flow narrowing are still evaluated by function().
+    let arguments = arguments::Arguments::default();
+    let calls = graph
+        .calls
+        .iter()
+        .map(|call| {
+            (
+                (call.site.module_id.clone(), call.site.node_id),
+                call.clone(),
+            )
+        })
+        .collect();
+    let mut effects = HashMap::new();
+    for (id, module) in &parsed.parsed_files {
+        module.with_semantic(|result| {
+            let bindings = bindings::BindingFacts::new(&result.semantic);
+            let mut capture = Capture {
+                owner: None,
+                calls: RefCell::new(HashMap::new()),
+            };
+            for owner in std::iter::once(None).chain(
+                graph
+                    .graph
+                    .node_indices()
+                    .filter(|index| &graph.graph[*index].module_id == id)
+                    .map(|index| Some(EscFnId::new(id.clone(), index))),
+            ) {
+                capture.owner = owner.clone();
+                let analyzer = Analyzer {
+                    bindings: &bindings,
+                    modules: &modules,
+                    module: id,
+                    semantic: &result.semantic,
+                    graph,
+                    calls: &calls,
+                    summaries: &summaries,
+                    reading: RefCell::new(HashSet::new()),
+                    arguments: &arguments,
+                    capture: Some(&capture),
+                };
+                if let Some(owner) = owner {
+                    analyzer.function(&graph.graph[owner.node()], &owner);
+                } else {
+                    module.with_program(|program| {
+                        analyzer.statements(&program.body, Env::new());
+                    });
+                }
+            }
+            let mut captured = capture.calls.into_inner();
+            let analyzer = Analyzer {
+                bindings: &bindings,
+                modules: &modules,
+                module: id,
+                semantic: &result.semantic,
+                graph,
+                calls: &calls,
+                summaries: &summaries,
+                reading: RefCell::new(HashSet::new()),
+                arguments: &arguments,
+                capture: None,
+            };
+            for call in graph.calls.iter().filter(|call| &call.site.module_id == id) {
+                if let Some(effect) = captured.remove(&call.site.node_id) {
+                    effects.insert((id.clone(), call.site.node_id), effect);
+                    continue;
+                }
+                let (callee, arguments, new, optional) =
+                    match result.semantic.nodes().kind(call.site.node_id) {
+                        AstKind::CallExpression(expression) => (
+                            &expression.callee,
+                            expression.arguments.as_slice(),
+                            false,
+                            expression.optional,
+                        ),
+                        AstKind::NewExpression(expression) => (
+                            &expression.callee,
+                            expression.arguments.as_slice(),
+                            true,
+                            false,
+                        ),
+                        _ => continue,
+                    };
+                let flow = analyzer.call_expression(
+                    call.site.node_id,
+                    callee,
+                    arguments,
+                    new,
+                    optional,
+                    Env::new(),
+                );
+                let mut effect = EscCallErrors::default();
+                for (kind, state) in flow.0 {
+                    if kind == Completion::Throw {
+                        effect.sync.extend(state.value.types);
+                    }
+                    if kind == Completion::Normal {
+                        effect.deferred.extend(state.value.deferred);
+                    }
+                }
+                effects.insert((id.clone(), call.site.node_id), effect);
+            }
+        });
+    }
+    Ok((errors, effects))
+}
+
+async fn resolve_summaries(
+    parsed: &EscProjectStateParsed,
+    graph: &EscCallGraph,
+    workers: usize,
+) -> Result<HashMap<EscFnId, Summary>> {
     let count = graph.sccs.len();
     if count == 0 {
         return Ok(HashMap::new());
@@ -544,7 +699,7 @@ pub(super) async fn resolve_with_workers(
             let node = petgraph::graph::NodeIndex::new(index);
             (
                 EscFnId::new(graph.graph[node].module_id.clone(), node),
-                summary.errors.clone(),
+                summary.clone(),
             )
         })
         .collect();

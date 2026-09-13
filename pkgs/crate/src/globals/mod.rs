@@ -41,6 +41,29 @@ pub struct EscGlobals;
 type Properties = HashMap<&'static str, HashMap<&'static str, &'static EscGlobal>>;
 
 impl EscGlobals {
+    pub(crate) fn has_path_or_children(path: &str) -> bool {
+        Self::get(path).is_some()
+            || Self::index().keys().any(|known| {
+                known
+                    .strip_prefix(path)
+                    .is_some_and(|suffix| suffix.starts_with('.'))
+            })
+    }
+    pub(crate) fn is_modified(path: &str, modified: &HashSet<String>) -> bool {
+        if modified.contains("globalThis") {
+            return true;
+        }
+        let mut current = path.strip_prefix("globalThis.").unwrap_or(path);
+        loop {
+            if modified.contains(current) {
+                return true;
+            }
+            let Some((parent, _)) = current.rsplit_once('.') else {
+                return false;
+            };
+            current = parent;
+        }
+    }
     fn index() -> &'static HashMap<&'static str, &'static EscGlobal> {
         static INDEX: LazyLock<HashMap<&'static str, &'static EscGlobal>> = LazyLock::new(|| {
             data::GLOBALS

@@ -1,13 +1,52 @@
 # ErrorScript for VS Code
 
-Dummy ErrorScript language features for JavaScript, JSX, TypeScript, and TSX.
+ErrorScript language features for JavaScript, JSX, TypeScript, and TSX.
 The extension starts a separate Rust language server through the generated
 `@errorscript/lsp` napi-rs package. VS Code's built-in JS/TS support stays active;
 ErrorScript adds its own hover and diagnostic collection.
 
-Hover in a JS/TS document to see the dummy server status. Add
-`// errorscript-dummy` to see an informational diagnostic. Remove the marker to
-clear it. There is no compiler integration yet.
+Install the extension and open a JS/TS file to start analysis automatically. Hover
+over a function call to see the errors it may throw or reject with, including
+errors propagated through imported functions.
+
+Unhandled **module-level calls** get a red underline and an ErrorScript entry in
+the Problems panel:
+
+```ts
+function load() {
+  throw new TypeError("Invalid input");
+}
+async function save() {
+  throw new RangeError("Out of range");
+}
+
+load(); // ErrorScript: TypeError
+save(); // ErrorScript: RangeError
+
+try {
+  load();
+} catch (error) {} // Handled synchronous error
+try {
+  await save();
+} catch (error) {} // Handled rejection
+save().catch(() => {}); // Handled rejection
+```
+
+A `try/catch` around an unawaited async call does not handle its rejection.
+Rejection handlers supplied to `.then()` are also recognized; `.finally()` alone
+does not handle rejections. Errors thrown by a promise handler remain errors of
+the resulting promise. Calls inside functions contribute to their function's
+error summary and still have hover information.
+
+Analysis updates while you type, including unsaved changes in dependencies, and
+also responds to file creation, deletion, and disk edits. ErrorScript reads
+`errconfig.toml` or `tsconfig.json` and follows imports from open documents.
+Unrelated parsed modules and reports are retained across edits.
+
+This is a conservative may-throw analysis: `unknown` in a hover means the analyzer
+cannot resolve all possible errors, for example from dynamic dispatch. Stored
+promises are recognized when all uses are known handlers or caught awaits;
+arbitrary promise escapes remain conservative.
 
 ## Development
 

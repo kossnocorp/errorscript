@@ -16,6 +16,7 @@ mod bindings;
 mod expression;
 
 mod queue;
+pub(crate) use queue::resolve_call_errors;
 pub use queue::resolve_errors;
 
 mod statement;
@@ -240,6 +241,12 @@ struct Analyzer<'s, 'a> {
     summaries: &'s queue::Summaries,
     reading: RefCell<HashSet<SymbolId>>,
     arguments: &'s arguments::Arguments,
+    capture: Option<&'s Capture>,
+}
+
+struct Capture {
+    owner: Option<EscFnId>,
+    calls: RefCell<HashMap<NodeId, EscCallErrors>>,
 }
 
 impl Analyzer<'_, '_> {

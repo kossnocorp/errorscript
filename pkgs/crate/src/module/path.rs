@@ -13,6 +13,11 @@ impl EscModulePath {
     pub fn as_path(&self) -> &Path {
         self.0.as_path()
     }
+
+    /// Editor buffers may have a filesystem URI before their first save.
+    pub fn for_document(path: PathBuf) -> Result<Self> {
+        EscPath::for_document(&path).map(Self)
+    }
 }
 
 impl AsRef<Path> for EscModulePath {

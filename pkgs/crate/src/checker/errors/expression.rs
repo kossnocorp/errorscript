@@ -190,7 +190,7 @@ impl Analyzer<'_, '_> {
         }
     }
 
-    fn call_expression(
+    pub(super) fn call_expression(
         &self,
         node: NodeId,
         callee: &Expression<'_>,
@@ -199,6 +199,100 @@ impl Analyzer<'_, '_> {
         optional: bool,
         env: Env,
     ) -> Flow {
+        let flow = self.call_expression_inner(node, callee, arguments, new, optional, env);
+        if let Some(capture) = self.capture
+            && self
+                .calls
+                .get(&(self.module.clone(), node))
+                .is_some_and(|call| call.caller == capture.owner)
+        {
+            let mut calls = capture.calls.borrow_mut();
+            let effect = calls.entry(node).or_default();
+            for (kind, state) in &flow.0 {
+                if *kind == Completion::Throw {
+                    effect.sync.extend(state.value.types.iter().cloned());
+                }
+                if *kind == Completion::Normal {
+                    effect.deferred.extend(state.value.deferred.iter().cloned());
+                }
+            }
+        }
+        flow
+    }
+
+    fn call_expression_inner(
+        &self,
+        node: NodeId,
+        callee: &Expression<'_>,
+        arguments: &[Argument<'_>],
+        new: bool,
+        optional: bool,
+        env: Env,
+    ) -> Flow {
+        if !new
+            && let Some(member) = callee.get_inner_expression().as_member_expression()
+            && let Some(method @ ("catch" | "then" | "finally")) = member.static_property_name()
+        {
+            let receiver = self.expr(member.object(), env.clone());
+            if receiver.0.iter().any(|(kind, state)| {
+                *kind == Completion::Normal
+                    && state
+                        .value
+                        .types
+                        .contains(&EscErrorType::builtin("Promise"))
+            }) && receiver
+                .0
+                .iter()
+                .filter(|(kind, _)| *kind == Completion::Normal)
+                .all(|(_, state)| {
+                    state
+                        .value
+                        .types
+                        .iter()
+                        .all(|ty| *ty == EscErrorType::builtin("Promise"))
+                })
+            {
+                return receiver.then(|state| {
+                    let mut value = state.value;
+                    let rejection = if method == "catch" {
+                        arguments.first()
+                    } else if method == "then" {
+                        arguments.get(1)
+                    } else {
+                        None
+                    };
+                    if rejection.is_some_and(|argument| self.promise_callback(argument).is_some()) {
+                        value.deferred = Types::new();
+                    }
+                    for argument in arguments.iter().take(if method == "then" { 2 } else { 1 }) {
+                        if let Some(summary) = self.promise_callback(argument) {
+                            value.deferred.join(summary.errors);
+                            value.deferred.join(summary.returned.deferred);
+                            value.awaited.join(summary.returned.types);
+                        } else if argument.as_expression().is_some_and(
+                            |expression| match expression.get_inner_expression() {
+                                Expression::NullLiteral(_) => false,
+                                Expression::Identifier(id)
+                                    if id.name == "undefined" && self.symbol(id).is_none() =>
+                                {
+                                    false
+                                }
+                                _ => true,
+                            },
+                        ) {
+                            value.deferred.insert(EscErrorType::UNKNOWN);
+                        }
+                    }
+                    let mut flow = Flow::normal(state.env, Value::undefined());
+                    for argument in arguments {
+                        if let Some(expression) = argument.as_expression() {
+                            flow = flow.then(|state| self.expr(expression, state.env));
+                        }
+                    }
+                    flow.value(value)
+                });
+            }
+        }
         let call = self.calls.get(&(self.module.clone(), node));
         let resolved = call.is_some_and(|call| !call.unresolved);
         let mut models = call
@@ -331,6 +425,31 @@ impl Analyzer<'_, '_> {
             flow.join(Flow::normal(env, Value::undefined()));
         }
         flow
+    }
+
+    fn promise_callback(&self, argument: &Argument<'_>) -> Option<Summary> {
+        use oxc_span::GetSpan;
+        let callback = self
+            .graph
+            .callbacks
+            .get(&(self.module.clone(), argument.as_expression()?.span()))?;
+        if callback.unresolved {
+            return None;
+        }
+        let mut summary = Summary::default();
+        for target in &callback.targets {
+            summary.join(self.summaries.get(target));
+        }
+        for path in &callback.globals {
+            let model = self.graph.global(path)?.call?;
+            summary.errors.extend(model.errors.iter().cloned());
+            for rule in model.arguments {
+                summary.errors.extend(rule.errors.iter().cloned());
+            }
+            summary.returned.join(Value::builtin(model.returns));
+            summary.completes = true;
+        }
+        Some(summary)
     }
 
     fn invoke(&self, node: NodeId, new: bool, super_call: bool, mut env: Env) -> Flow {

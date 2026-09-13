@@ -18,4 +18,11 @@ pub struct EscProjectStateChecked {
     pub call_graph: EscCallGraph,
     /// Escaping body errors (promise rejections for async functions).
     pub errors: HashMap<EscFnId, HashSet<EscErrorType>>,
+    pub call_errors: HashMap<(EscModuleId, oxc_syntax::node::NodeId), EscCallErrors>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct EscCallErrors {
+    pub sync: HashSet<EscErrorType>,
+    pub deferred: HashSet<EscErrorType>,
 }

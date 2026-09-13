@@ -21,7 +21,7 @@ impl EscProject {
         Ok(self.files_with_exclusions().await?.0)
     }
 
-    pub(super) async fn files_with_exclusions(
+    pub(crate) async fn files_with_exclusions(
         &self,
     ) -> Result<(HashSet<EscModulePath>, HashSet<EscModulePath>)> {
         let mut exclusions = HashSet::new();

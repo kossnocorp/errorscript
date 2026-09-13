@@ -1,9 +1,13 @@
-import type { ExtensionContext } from "vscode";
+import { workspace, type ExtensionContext } from "vscode";
 import { LanguageClient, TransportKind } from "vscode-languageclient/node.js";
 
 let client: LanguageClient | undefined;
 
 export async function activate(context: ExtensionContext): Promise<void> {
+  const watcher = workspace.createFileSystemWatcher(
+    "**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,toml}",
+  );
+  context.subscriptions.push(watcher);
   client = new LanguageClient(
     "errorscript",
     "ErrorScript",
@@ -19,6 +23,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
         { language: "typescriptreact" },
       ],
       diagnosticCollectionName: "errorscript",
+      synchronize: { fileEvents: watcher },
     },
   );
   context.subscriptions.push(client);

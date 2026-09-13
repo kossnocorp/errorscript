@@ -23,6 +23,7 @@ pub struct EscModule {
     pub references: EscModuleReferences,
     pub diagnostics: Diagnostics,
     pub panicked: bool,
+    pub(crate) has_module_syntax: bool,
 }
 
 self_cell! {
@@ -72,6 +73,9 @@ impl Debug for EscModuleData<'_> {
 }
 
 impl EscModule {
+    pub fn source(&self) -> &str {
+        &self.cell.borrow_owner().source_code
+    }
     /// Owned input for worker-local ASTs. Reusing the parser and semantic build
     /// options preserves the snapshot's NodeId/SymbolId ordering.
     pub(crate) fn analysis_source(&self) -> (Arc<String>, SourceType) {
@@ -110,6 +114,7 @@ impl EscModule {
             references: EscModuleReferences::default(),
             diagnostics,
             panicked,
+            has_module_syntax: false,
         }
     }
 
@@ -144,7 +149,12 @@ impl EscModule {
                 path,
                 resolver,
             );
-            metadata = Some((references, parsed.diagnostics, parsed.panicked));
+            metadata = Some((
+                references,
+                parsed.diagnostics,
+                parsed.panicked,
+                parsed.module_record.has_module_syntax,
+            ));
 
             // Both dependents borrow the owner, rather than one borrowing the other.
             let program: &Program<'_> = owner.allocator.0.alloc(parsed.program);
@@ -154,7 +164,7 @@ impl EscModule {
 
             EscModuleData { program, semantic }
         });
-        let (references, diagnostics, panicked) =
+        let (references, diagnostics, panicked, has_module_syntax) =
             metadata.expect("module metadata collected during parsing");
 
         let file = EscModule {
@@ -162,6 +172,7 @@ impl EscModule {
             references,
             diagnostics,
             panicked,
+            has_module_syntax,
         };
         Ok(file)
     }

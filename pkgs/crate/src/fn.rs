@@ -57,6 +57,7 @@ pub struct EscCall {
 
 #[derive(Clone, Debug, Default)]
 pub struct EscCallGraph {
+    pub(crate) callbacks: HashMap<(EscModuleId, oxc_span::Span), EscCallback>,
     /// Declaration signatures linked through paired runtime/type module exports.
     pub(crate) signatures: HashMap<EscFnId, Vec<EscErrorId>>,
     /// Caller -> possible callee. Parallel edges retain distinct call sites.
@@ -71,14 +72,17 @@ pub struct EscCallGraph {
     pub(crate) modified_globals: HashSet<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct EscCallback {
+    pub targets: Vec<EscFnId>,
+    pub globals: HashSet<&'static str>,
+    pub unresolved: bool,
+}
+
 impl EscCallGraph {
     pub(crate) fn global(&self, path: &str) -> Option<&'static EscGlobal> {
         let global = EscGlobals::get(path)?;
-        if self.modified_globals.contains("globalThis")
-            || self
-                .modified_globals
-                .contains(global.path.split('.').next()?)
-        {
+        if EscGlobals::is_modified(global.path, &self.modified_globals) {
             return None;
         }
         Some(global)

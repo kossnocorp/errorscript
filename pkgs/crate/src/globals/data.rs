@@ -148,6 +148,26 @@ const fn error(
 // Add global/property paths here; resolver and analyzer logic is independent of
 // the names. A property can have read errors even when it isn't callable.
 pub(super) static GLOBALS: &[EscGlobal] = &[
+    function(
+        "Symbol",
+        "symbol",
+        &[],
+        &[EscGlobalArgument {
+            index: Some(0),
+            safe_types: PRIMITIVES,
+            errors: TYPE_ERROR,
+        }],
+    ),
+    function(
+        "Symbol.for",
+        "symbol",
+        &[],
+        &[EscGlobalArgument {
+            index: Some(0),
+            safe_types: PRIMITIVES,
+            errors: TYPE_ERROR,
+        }],
+    ),
     constructor("Uint8Array"),
     constructor("ArrayBuffer"),
     constructor("SharedArrayBuffer"),

@@ -10,10 +10,11 @@ repository = "https://github.com/kossnocorp/errorscript"
 crate-type = ["cdylib"]
 
 [dependencies]
+errorscript = { path = "../crate" }
 napi = { version = "3", features = ["tokio_rt"] }
 napi-derive = "3"
-tokio = { version = "1", features = ["io-std", "macros", "sync"] }
-tower = { version = "0.4", features = ["limit", "util"] }
+tokio = { version = "1", features = ["io-std", "macros", "sync", "time"] }
+tower = { version = "0.4", features = ["util"] }
 tower-lsp = "0.20"
 
 [build-dependencies]

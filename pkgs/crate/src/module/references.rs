@@ -96,10 +96,19 @@ impl EscModuleReferences {
         path: &EscModulePath,
         resolver: &EscResolver,
     ) -> Self {
+        Self::collect_with_module_syntax(program, module_record.has_module_syntax, path, resolver)
+    }
+
+    pub(crate) fn collect_with_module_syntax(
+        program: &Program<'_>,
+        has_module_syntax: bool,
+        path: &EscModulePath,
+        resolver: &EscResolver,
+    ) -> Self {
         let mut collector = Collector {
             path,
             resolver,
-            is_external_module: module_record.has_module_syntax,
+            is_external_module: has_module_syntax,
             type_only: program.source_type.is_typescript_definition(),
             in_ambient_module: false,
             references: Self::default(),

@@ -7,7 +7,7 @@ use crate::prelude::*;
 
 use oxc_ast::{AstKind, ast::*};
 use oxc_semantic::Semantic;
-use oxc_span::Span;
+use oxc_span::{GetSpan, Span};
 use oxc_syntax::{node::NodeId, symbol::SymbolId};
 use petgraph::{algo::tarjan_scc, graph::NodeIndex};
 use std::collections::BTreeSet;
@@ -56,6 +56,7 @@ struct Builder {
     exports: HashMap<ExportKey, Value>,
     stars: HashMap<EscModuleId, Vec<Option<EscModuleId>>>,
     calls: Vec<PendingCall>,
+    callbacks: Vec<(EscModuleId, Span, Value)>,
     classes: HashMap<EscErrorType, ClassInfo>,
     type_queries: Vec<(EscErrorId, Value, bool)>,
     modified_globals: HashSet<String>,
@@ -186,6 +187,55 @@ impl EscCallGraph {
 }
 
 impl Builder {
+    /// Symbol-valued keys cannot overwrite any named standard global.
+    fn symbol_key(
+        &self,
+        module: &EscModuleId,
+        semantic: &Semantic<'_>,
+        expression: &Expression<'_>,
+        seen: &mut HashSet<SymbolId>,
+    ) -> bool {
+        match expression.get_inner_expression() {
+            Expression::Identifier(identifier) => {
+                let Some(symbol) = identifier
+                    .reference_id
+                    .get()
+                    .and_then(|id| semantic.scoping().get_reference(id).symbol_id())
+                else {
+                    return false;
+                };
+                if semantic.scoping().symbol_is_mutated(symbol) || !seen.insert(symbol) {
+                    return false;
+                }
+                let AstKind::VariableDeclarator(declaration) = semantic
+                    .nodes()
+                    .kind(semantic.scoping().symbol_declaration(symbol))
+                else {
+                    return false;
+                };
+                declaration
+                    .init
+                    .as_ref()
+                    .is_some_and(|value| self.symbol_key(module, semantic, value, seen))
+            }
+            Expression::CallExpression(call) => {
+                let targets = self.resolve(
+                    &self.expression(module, semantic, &call.callee),
+                    &mut HashSet::new(),
+                );
+                !targets.unknown
+                    && targets.functions.is_empty()
+                    && !targets.globals.is_empty()
+                    && targets.globals.iter().all(|path| {
+                        EscGlobals::get(path)
+                            .and_then(|global| global.call)
+                            .is_some_and(|model| model.returns == "symbol")
+                    })
+            }
+            _ => false,
+        }
+    }
+
     fn function(&self, module: &EscModuleId, node: NodeId) -> Value {
         self.functions
             .get(&(module.clone(), node))
@@ -532,7 +582,28 @@ impl Builder {
                     }
                 }
                 AstKind::CallExpression(call) => {
-                    self.call(module, semantic, node.id(), &call.callee)
+                    self.call(module, semantic, node.id(), &call.callee);
+                    if call
+                        .callee
+                        .get_inner_expression()
+                        .as_member_expression()
+                        .is_some_and(|member| {
+                            matches!(
+                                member.static_property_name(),
+                                Some("catch" | "then" | "finally")
+                            )
+                        })
+                    {
+                        for argument in &call.arguments {
+                            if let Some(expression) = argument.as_expression() {
+                                self.callbacks.push((
+                                    module.clone(),
+                                    expression.span(),
+                                    self.expression(module, semantic, expression),
+                                ));
+                            }
+                        }
+                    }
                 }
                 AstKind::NewExpression(call) => {
                     self.call(module, semantic, node.id(), &call.callee)
@@ -594,8 +665,22 @@ impl Builder {
                     }
                     let value = self.expression(module, semantic, member.object());
                     for path in self.resolve(&value, &mut HashSet::new()).globals {
-                        self.modified_globals
-                            .insert(path.split('.').next().unwrap().to_owned());
+                        if let Some(property) = member.static_property_name() {
+                            // A property write does not replace its parent object
+                            // or constructor (e.g. Error.stackTraceLimit).
+                            let path = if path == "globalThis" {
+                                property.to_owned()
+                            } else {
+                                format!("{path}.{property}")
+                            };
+                            if EscGlobals::has_path_or_children(&path) {
+                                self.modified_globals.insert(path);
+                            }
+                        } else if !matches!(member, MemberExpression::ComputedMemberExpression(member)
+                            if self.symbol_key(module, semantic, &member.expression, &mut HashSet::new()))
+                        {
+                            self.modified_globals.insert(path.to_owned());
+                        }
                     }
                 }
                 if let AssignmentTarget::AssignmentTargetIdentifier(id) = &assignment.left
@@ -723,11 +808,7 @@ impl Builder {
                 result.globals.clear();
             }
             Value::Global(path) => {
-                if self.modified_globals.contains("globalThis")
-                    || self
-                        .modified_globals
-                        .contains(path.split('.').next().unwrap())
-                {
+                if EscGlobals::is_modified(path, &self.modified_globals) {
                     result.unknown = true;
                 } else if let Some(global) = EscGlobals::get(path) {
                     result.globals.insert(global.path);
@@ -895,6 +976,25 @@ impl Builder {
             }
         }
         self.result.modified_globals = self.modified_globals.clone();
+        for (module, span, value) in std::mem::take(&mut self.callbacks) {
+            let targets = self.resolve(&value, &mut HashSet::new());
+            let unresolved = targets.unknown
+                || (targets.functions.is_empty() && targets.globals.is_empty())
+                || !targets.types.is_empty()
+                || !targets.namespaces.is_empty();
+            self.result.callbacks.insert(
+                (module, span),
+                EscCallback {
+                    targets: targets
+                        .functions
+                        .into_iter()
+                        .map(|index| self.id(index))
+                        .collect(),
+                    globals: targets.globals,
+                    unresolved,
+                },
+            );
+        }
         for (ty, class) in &self.classes {
             let mut bases = HashSet::new();
             if let Some(base) = &class.superclass {

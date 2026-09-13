@@ -16,6 +16,21 @@ impl EscPath {
         &self.0
     }
 
+    pub(crate) fn for_document(path: &Path) -> Result<Self> {
+        match Self::try_new(path) {
+            Ok(path) => Ok(path),
+            Err(_) if !path.exists() => {
+                let parent = Self::try_new(path.parent().context("Document has no parent")?)?;
+                Ok(Self(
+                    parent
+                        .as_path()
+                        .join(path.file_name().context("Document has no name")?),
+                ))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     /// A parent of a canonical path is already canonical.
     pub fn parent(&self) -> Option<Self> {
         self.0.parent().map(|parent| Self(parent.to_path_buf()))
