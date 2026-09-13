@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleDetection": "force",
+    "strict": true,
+    "noEmit": true,
+    "types": []
+  },
+  "contentMappers": [
+    {
+      "package": "@errorscript/ts",
+      "extensions": [".ets"]
+    }
+  ],
+  "include": ["index.ets"]
+}

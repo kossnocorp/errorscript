@@ -1,0 +1,30 @@
+{
+  "name": "@errorscript/ts",
+  "version": "0.0.0",
+  "description": "ErrorScript TypeScript content mapper proof of concept",
+  "license": "MIT",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "tsc --build",
+    "example": "tsc --project example --runExternalCode",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^8.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "typescript": {
+    "contentMapper": {
+      "compilerOptions": [],
+      "exec": [
+        "node",
+        "src/server.js"
+      ]
+    }
+  }
+}

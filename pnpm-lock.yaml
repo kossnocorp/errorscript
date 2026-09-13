@@ -8,12 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@errorscript/ts':
+        specifier: workspace:*
+        version: link:pkgs/ts
       oxfmt:
         specifier: ^0.66.0
         version: 0.66.0
       typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
+        specifier: 7.1.0-dev.20260913.1
+        version: 7.1.0-dev.20260913.1
 
   pkgs/crate:
     devDependencies:
@@ -80,6 +83,16 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  pkgs/ts:
+    dependencies:
+      vscode-jsonrpc:
+        specifier: ^8.2.1
+        version: 8.2.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.4
 
   pkgs/vscode:
     dependencies:
@@ -2263,8 +2276,20 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  '@typescript/typescript-darwin-arm64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-jN35ZzxIhFFXPL7OKYjBS/H3f9gOTHbDJRVlIom8DT1hg9gbFHT1rEovZGxC74k9qngJAdDv7MgzPeVo0tu5AA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
   '@typescript/typescript-darwin-x64@7.0.2':
     resolution: {integrity: sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/typescript-darwin-x64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-D9IkhZY5LNRpEv4V9zlGt+Clp7+1xwuGhkpzF0li8H4Hj/wn8jmfI+g9u0rEsLkpyy5t715HQ/ymszozvD6Mhg==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [darwin]
@@ -2287,8 +2312,20 @@ packages:
     cpu: [arm64]
     os: [linux]
 
+  '@typescript/typescript-linux-arm64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-bE/moSqhLG5I6hw2D8MyIPt3dxvGBmCB28/VIKXZ96RYfbhjj2USx7NNA/C3+P60FhQczaMkbd3wyo4LRpxv5Q==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+
   '@typescript/typescript-linux-arm@7.0.2':
     resolution: {integrity: sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/typescript-linux-arm@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-JE36V+G1GsKUV0D0/QVUCpQ3UyS81liMH0qKfof8j/Y0joF2SFai1Xo5OSNi0QSuDmOCiwERE4TRVo3/pQOtvw==}
     engines: {node: '>=16.20.0'}
     cpu: [arm]
     os: [linux]
@@ -2329,6 +2366,12 @@ packages:
     cpu: [x64]
     os: [linux]
 
+  '@typescript/typescript-linux-x64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-RwEJVRmVAP5l0YNKcJMHtO4BKPRMLq8wcJAn0OQ2AQsual8VOWnS+bxnI2xO95hM/Xwe6cmLVK8TBc3WzScgog==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+
   '@typescript/typescript-netbsd-arm64@7.0.2':
     resolution: {integrity: sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==}
     engines: {node: '>=16.20.0'}
@@ -2365,8 +2408,20 @@ packages:
     cpu: [arm64]
     os: [win32]
 
+  '@typescript/typescript-win32-arm64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-+GYnjq0wffSzfSR/6d0K3r7LM3te3wqePdWdA1TYbNXBDmMBPvwvcI0n+5gNne5h2BuRLhdP3uoys5c05a5pxA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
   '@typescript/typescript-win32-x64@7.0.2':
     resolution: {integrity: sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@typescript/typescript-win32-x64@7.1.0-dev.20260913.1':
+    resolution: {integrity: sha512-7Eb4iZ7uMKINXHetQ45R/UJi+AhTgD8H4Lbyz4PQciHQ9mMjvI6Xq/tZlw+2Hy6ym/Wc/jazKu61E1BeGYJXWQ==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [win32]
@@ -4001,6 +4056,11 @@ packages:
     engines: {node: '>=16.20.0'}
     hasBin: true
 
+  typescript@7.1.0-dev.20260913.1:
+    resolution: {integrity: sha512-Utl01/z3d++BoytDrVrgQ+mjWGxW4eDtRejedyFJVf583KI7RWdazontz8hKCAwwFEnoQTdkopbkJNV7J6KtEw==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
+
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
@@ -4294,6 +4354,10 @@ packages:
 
   vscode-jsonrpc@8.2.0:
     resolution: {integrity: sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==}
+    engines: {node: '>=14.0.0'}
+
+  vscode-jsonrpc@8.2.1:
+    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
     engines: {node: '>=14.0.0'}
 
   vscode-languageclient@9.0.1:
@@ -6044,7 +6108,13 @@ snapshots:
   '@typescript/typescript-darwin-arm64@7.0.2':
     optional: true
 
+  '@typescript/typescript-darwin-arm64@7.1.0-dev.20260913.1':
+    optional: true
+
   '@typescript/typescript-darwin-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-darwin-x64@7.1.0-dev.20260913.1':
     optional: true
 
   '@typescript/typescript-freebsd-arm64@7.0.2':
@@ -6056,7 +6126,13 @@ snapshots:
   '@typescript/typescript-linux-arm64@7.0.2':
     optional: true
 
+  '@typescript/typescript-linux-arm64@7.1.0-dev.20260913.1':
+    optional: true
+
   '@typescript/typescript-linux-arm@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-arm@7.1.0-dev.20260913.1':
     optional: true
 
   '@typescript/typescript-linux-loong64@7.0.2':
@@ -6077,6 +6153,9 @@ snapshots:
   '@typescript/typescript-linux-x64@7.0.2':
     optional: true
 
+  '@typescript/typescript-linux-x64@7.1.0-dev.20260913.1':
+    optional: true
+
   '@typescript/typescript-netbsd-arm64@7.0.2':
     optional: true
 
@@ -6095,7 +6174,13 @@ snapshots:
   '@typescript/typescript-win32-arm64@7.0.2':
     optional: true
 
+  '@typescript/typescript-win32-arm64@7.1.0-dev.20260913.1':
+    optional: true
+
   '@typescript/typescript-win32-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-win32-x64@7.1.0-dev.20260913.1':
     optional: true
 
   '@typespec/ts-http-runtime@0.3.9(supports-color@7.2.0)':
@@ -7958,6 +8043,16 @@ snapshots:
       '@typescript/typescript-win32-arm64': 7.0.2
       '@typescript/typescript-win32-x64': 7.0.2
 
+  typescript@7.1.0-dev.20260913.1:
+    optionalDependencies:
+      '@typescript/typescript-darwin-arm64': 7.1.0-dev.20260913.1
+      '@typescript/typescript-darwin-x64': 7.1.0-dev.20260913.1
+      '@typescript/typescript-linux-arm': 7.1.0-dev.20260913.1
+      '@typescript/typescript-linux-arm64': 7.1.0-dev.20260913.1
+      '@typescript/typescript-linux-x64': 7.1.0-dev.20260913.1
+      '@typescript/typescript-win32-arm64': 7.1.0-dev.20260913.1
+      '@typescript/typescript-win32-x64': 7.1.0-dev.20260913.1
+
   uc.micro@2.1.0: {}
 
   ufo@1.6.4: {}
@@ -8123,6 +8218,8 @@ snapshots:
       - msw
 
   vscode-jsonrpc@8.2.0: {}
+
+  vscode-jsonrpc@8.2.1: {}
 
   vscode-languageclient@9.0.1:
     dependencies:

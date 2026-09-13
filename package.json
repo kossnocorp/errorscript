@@ -2,7 +2,8 @@
   "name": "@errorscript/repo",
   "private": true,
   "devDependencies": {
+    "@errorscript/ts": "workspace:*",
     "oxfmt": "^0.66.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.1.0-dev.20260913.1"
   }
 }
