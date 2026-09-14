@@ -16,6 +16,7 @@ napi-derive = "3"
 tokio = { version = "1", features = ["io-std", "macros", "sync", "time"] }
 tower = { version = "0.4", features = ["util"] }
 tower-lsp = "0.20"
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 napi-build = "2"

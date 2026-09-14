@@ -9,6 +9,16 @@ Install the extension and open a JS/TS file to start analysis automatically. Hov
 over a function call to see the errors it may throw or reject with, including
 errors propagated through imported functions.
 
+Call names that may throw or reject get a thin underline, similar to Rust's
+mutable-variable highlighting. This includes handled calls, constructors, and
+calls with `unknown` errors. For method calls, the method name is underlined.
+The decoration preserves syntax colors and updates after analysis; stale
+decorations are cleared while editing. Disable it with:
+
+```json
+"errorscript.highlightThrowingCalls": false
+```
+
 Unhandled **module-level calls** get a red underline and an ErrorScript entry in
 the Problems panel:
 

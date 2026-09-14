@@ -2,7 +2,7 @@
 //! component survive edits. Edges are traversed both ways because argument
 //! inference carries information from callers into callees.
 use crate::prelude::*;
-use oxc_ast::AstKind;
+use oxc_ast::{AstKind, ast::Expression};
 use oxc_span::{GetSpan, Span};
 
 #[cfg(test)]
@@ -12,6 +12,8 @@ mod tests;
 pub struct EscCallReport {
     pub start: u32,
     pub end: u32,
+    pub highlight_start: u32,
+    pub highlight_end: u32,
     pub errors: Vec<String>,
     pub uncaught: Vec<String>,
 }
@@ -226,10 +228,17 @@ fn reports(state: &EscProjectStateChecked, module: &EscModuleId) -> Vec<EscCallR
             .iter()
             .filter(|call| &call.site.module_id == module)
             .filter_map(|call| {
-                let span = match nodes.kind(call.site.node_id) {
-                    AstKind::CallExpression(expression) => expression.span,
-                    AstKind::NewExpression(expression) => expression.span,
+                let (span, callee) = match nodes.kind(call.site.node_id) {
+                    AstKind::CallExpression(expression) => (expression.span, &expression.callee),
+                    AstKind::NewExpression(expression) => (expression.span, &expression.callee),
                     _ => return None,
+                };
+                let callee = callee.get_inner_expression();
+                let highlight = match callee {
+                    Expression::StaticMemberExpression(member) => member.property.span,
+                    Expression::ComputedMemberExpression(member) => member.expression.span(),
+                    Expression::PrivateFieldExpression(member) => member.field.span,
+                    _ => callee.span(),
                 };
                 let effects = state
                     .call_errors
@@ -314,6 +323,8 @@ fn reports(state: &EscProjectStateChecked, module: &EscModuleId) -> Vec<EscCallR
                 Some(EscCallReport {
                     start: span.start,
                     end: span.end,
+                    highlight_start: highlight.start,
+                    highlight_end: highlight.end,
                     errors,
                     uncaught,
                 })

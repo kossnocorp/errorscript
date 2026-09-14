@@ -72,6 +72,16 @@ test("native stdio server lifecycle, hover, and diagnostics", async ({ onTestFin
   }
   const uri = pathToFileURL(join(directory, "entry.ts")).href;
   const workerUri = pathToFileURL(join(directory, "worker.ts")).href;
+  const highlights = (version: number, empty = false) =>
+    receive((message) => {
+      const params = message.params as { uri: string; version: number; ranges: unknown[] };
+      return (
+        message.method === "errorscript/throwingCalls" &&
+        params.uri === uri &&
+        params.version === version &&
+        (!empty || params.ranges.length === 0)
+      );
+    });
   const diagnostic = (target = uri, version?: number) =>
     receive(
       (message) =>
@@ -115,6 +125,11 @@ test("native stdio server lifecycle, hover, and diagnostics", async ({ onTestFin
         },
       },
     ],
+  });
+  expect((await highlights(1)).params).toEqual({
+    uri,
+    version: 1,
+    ranges: [{ start: { line: 1, character: 9 }, end: { line: 1, character: 13 } }],
   });
   send({
     id: 2,
@@ -160,6 +175,7 @@ test("native stdio server lifecycle, hover, and diagnostics", async ({ onTestFin
   });
   expect((await diagnostic()).params).toMatchObject({ diagnostics: [] });
   await diagnostic(workerUri, 2);
+  expect((await highlights(1, true)).params).toMatchObject({ ranges: [] });
   send({ method: "textDocument/didClose", params: { textDocument: { uri: workerUri } } });
   expect((await diagnostic()).params).toMatchObject({
     diagnostics: [{ message: expect.stringContaining("TypeError") }],
@@ -184,6 +200,9 @@ test("native stdio server lifecycle, hover, and diagnostics", async ({ onTestFin
     },
   });
   expect((await diagnostic()).params).toEqual({ uri, version: 2, diagnostics: [] });
+  expect((await highlights(2)).params).toMatchObject({
+    ranges: [{ start: { line: 0, character: 39 }, end: { line: 0, character: 43 } }],
+  });
   send({
     method: "textDocument/didChange",
     params: {

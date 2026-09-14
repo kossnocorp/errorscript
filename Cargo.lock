@@ -278,6 +278,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "serde",
  "tokio",
  "tower",
  "tower-lsp",

@@ -28,6 +28,19 @@
     "esbuild": "^0.28.0",
     "typescript": "^7.0.2"
   },
+  "contributes": {
+    "configuration": {
+      "title": "ErrorScript",
+      "properties": {
+        "errorscript.highlightThrowingCalls": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Underline call names that may throw or reject, including unknown errors and handled calls."
+        }
+      }
+    }
+  },
   "activationEvents": [
     "onLanguage:javascript",
     "onLanguage:javascriptreact",

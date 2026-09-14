@@ -30,6 +30,20 @@ struct Snapshot {
     reports: Vec<EscCallReport>,
 }
 
+enum ThrowingCalls {}
+
+impl notification::Notification for ThrowingCalls {
+    type Params = ThrowingCallsParams;
+    const METHOD: &'static str = "errorscript/throwingCalls";
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ThrowingCallsParams {
+    uri: Url,
+    version: i32,
+    ranges: Vec<Range>,
+}
+
 impl Backend {
     /// Notifications only update inputs. A single worker coalesces edits and
     /// publishes the newest completed revision without occupying LSP requests.
@@ -109,6 +123,31 @@ impl Backend {
                     client.log_message(MessageType::ERROR, error).await;
                 }
                 for (uri, version, diagnostics) in diagnostics {
+                    let ranges = module_path(&uri)
+                        .and_then(|path| state.snapshots.get(&path))
+                        .map(|snapshot| {
+                            let lines = LineIndex::new(&snapshot.text);
+                            snapshot
+                                .reports
+                                .iter()
+                                .filter(|report| !report.errors.is_empty())
+                                .map(|report| {
+                                    lines.range(
+                                        &snapshot.text,
+                                        report.highlight_start,
+                                        report.highlight_end,
+                                    )
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    client
+                        .send_notification::<ThrowingCalls>(ThrowingCallsParams {
+                            uri: uri.clone(),
+                            version,
+                            ranges,
+                        })
+                        .await;
                     client
                         .publish_diagnostics(uri, diagnostics, Some(version))
                         .await;
