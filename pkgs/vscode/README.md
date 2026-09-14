@@ -65,3 +65,36 @@ extension, so installation does not require workspace dependencies. The native
 binary is specific to the build machine's OS and architecture; build a separate
 VSIX on each target platform (and use `vsce package --no-dependencies --target`
 with the corresponding VS Code target when distributing).
+
+## Catch cast checking
+
+Enable this opt-in check in `errconfig.toml`:
+
+```toml
+[checks]
+cast_catch = true
+```
+
+For a catch that accesses its caught error and has known inferred error types, ErrorScript requires the parameter
+name `err_` and a first statement declaring `const err = err_ as <type>`:
+
+```ts
+try {
+  throw new Error("Wut");
+} catch (err_) {
+  const err = err_ as Error;
+}
+```
+
+The asserted type must match the recorded error types; unions may appear in any
+order. Incorrect types, missing casts, and incorrect binding names produce an
+error diagnostic (`cast-catch`). “First statement” ignores comments and whitespace.
+Handlers that never read the caught binding, including `catch {}` and
+`catch (err_) {}`, are exempt. Reads inside closures count; unrelated shadowed
+bindings do not. Destructuring a catch parameter counts as accessing the error.
+Catches with no recorded errors, `unknown`, or any union containing `unknown`
+are skipped entirely. Files under a `node_modules` path component are external:
+their errors still contribute to inference, but this check does not enforce
+catch conventions in those files. Configuration and dependency edits refresh
+the diagnostics automatically. The CLI `build` command also reports violations
+and exits unsuccessfully.

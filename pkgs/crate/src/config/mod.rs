@@ -6,10 +6,18 @@ const OTHER_CONFIG_FILE: &str = "tsconfig.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscConfigManifest {
+    #[serde(default)]
+    pub checks: EscChecks,
     /// Globs relative to this config, replacing tsconfig file selection when set.
     /// Leading `!` patterns exclude matches (including imported dependencies),
     /// regardless of order. Empty or negative-only lists select no entry files.
     pub files: Option<Vec<PathBuf>>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct EscChecks {
+    #[serde(default)]
+    pub cast_catch: bool,
 }
 
 #[derive(Debug)]

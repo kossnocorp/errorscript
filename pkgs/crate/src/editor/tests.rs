@@ -20,6 +20,246 @@ fn path(dir: &TempDir, file: &str) -> EscModulePath {
 }
 
 #[tokio::test]
+async fn cast_catch_checks_known_errors_and_refreshes_configuration() {
+    let cases = [
+        (
+            "try { throw new Error(); } catch (err_) { const err = err_ as Error; }",
+            false,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { const err = err_ as TypeError; }",
+            true,
+        ),
+        ("try { throw new Error(); } catch (err) {}", false),
+        ("try { throw new Error(); } catch {}", false),
+        (
+            "try { throw new Error(); } catch (err_) { recover(); }",
+            false,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { err_ = null; }",
+            false,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { function nested(err_) { return err_; } }",
+            false,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { report(err_); }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { err_.message; }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err) { throw err; }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { const read = () => err_; }",
+            true,
+        ),
+        ("try { throw new Error(); } catch ({ message }) {}", true),
+        (
+            "try { throw new Error(); } catch (err_) { let err = err_ as Error; }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { const other = err_ as Error; }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { const err = other as Error; report(err_); }",
+            true,
+        ),
+        (
+            "try { throw new Error(); } catch (err_) { ; const err = err_ as Error; }",
+            true,
+        ),
+        (
+            "try { missing(); } catch (anything) { report(anything); }",
+            false,
+        ),
+        (
+            "try { if (flag) missing(); throw new Error(); } catch (anything) { report(anything); }",
+            false,
+        ),
+        ("try {} catch (anything) {}", false),
+        (
+            "try { if (flag) throw new TypeError(); throw new RangeError(); } catch (err_) { const err = err_ as RangeError | TypeError; }",
+            false,
+        ),
+        (
+            "try { if (flag) throw new TypeError(); throw new RangeError(); } catch (err_) { const err = err_ as TypeError; }",
+            true,
+        ),
+        (
+            "async function fail() { throw new Error(); } async function run() { try { await fail(); } catch (err_) { const err = err_ as TypeError; } }",
+            true,
+        ),
+        (
+            "class Custom extends Error {} try { throw new Custom(); } catch (err_) { const err = err_ as Custom; }",
+            false,
+        ),
+    ];
+    for (source, invalid) in cases {
+        let (dir, mut editor) = fixture(&[(
+            "entry.ts",
+            &format!("export function check(flag: boolean) {{ {source} }}"),
+        )])
+        .await;
+        let entry = path(&dir, "entry.ts");
+        assert!(editor.diagnostics[&entry].is_empty());
+        std::fs::write(
+            dir.path().join("errconfig.toml"),
+            "files = ['*.ts']\n[checks]\ncast_catch = true",
+        )
+        .unwrap();
+        editor
+            .update(&dir.path().to_path_buf(), &HashMap::new())
+            .await
+            .unwrap();
+        assert_eq!(
+            !editor.diagnostics[&entry].is_empty(),
+            invalid,
+            "{source}: {:?}",
+            editor.diagnostics[&entry]
+        );
+        std::fs::write(dir.path().join("errconfig.toml"), "files = ['*.ts']").unwrap();
+        editor
+            .update(&dir.path().to_path_buf(), &HashMap::new())
+            .await
+            .unwrap();
+        assert!(editor.diagnostics[&entry].is_empty());
+    }
+}
+
+#[tokio::test]
+async fn cast_catch_uses_dependency_errors_but_exempts_external_sources() {
+    let (dir, mut editor) = fixture(&[("entry.ts", "import { fail } from './node_modules/pkg/index'; try { fail(); } catch (err_) { const err = err_ as TypeError; }")]).await;
+    std::fs::create_dir_all(dir.path().join("node_modules/pkg")).unwrap();
+    let dependency = dir.path().join("node_modules/pkg/index.ts");
+    std::fs::write(
+        &dependency,
+        "export function fail() { throw new Error(); } try { fail(); } catch (wrong) { report(wrong); }",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("errconfig.toml"),
+        "files = ['*.ts']\n[checks]\ncast_catch = true",
+    )
+    .unwrap();
+    editor
+        .update(&dir.path().to_path_buf(), &HashMap::new())
+        .await
+        .unwrap();
+    let entry = path(&dir, "entry.ts");
+    let external = path(&dir, "node_modules/pkg/index.ts");
+    assert!(external.is_external());
+    assert!(!entry.is_external());
+    assert_eq!(editor.diagnostics[&entry].len(), 1);
+    assert!(editor.diagnostics[&external].is_empty());
+    std::fs::write(
+        dependency,
+        "export function fail() { throw new TypeError(); }",
+    )
+    .unwrap();
+    editor
+        .update(&dir.path().to_path_buf(), &HashMap::new())
+        .await
+        .unwrap();
+    assert!(editor.diagnostics[&entry].is_empty());
+}
+
+#[tokio::test]
+async fn cast_catch_reports_custom_error_name_initialization_in_hash_loop() {
+    let source = r#"
+        class HelloError extends Error {
+            constructor(message: string) {
+                super(message);
+                this.name = "HelloError";
+            }
+        }
+        function round32(acc: number, input: number): number {
+            if (acc > 50) throw new HelloError("Nope");
+            return Math.imul(acc + input, 32);
+        }
+        export function hash(input: Uint8Array) {
+            const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
+            let offset = 0;
+            let acc = 0;
+            while (offset < input.length) {
+                try {
+                    acc = round32(acc, view.getUint32(offset, true));
+                    offset += 4;
+                } catch (err_) {
+                    if (err_ instanceof HelloError) {
+                        console.error(err_.message);
+                    } else {
+                        throw err_;
+                    }
+                }
+            }
+        }
+    "#;
+    let (dir, mut editor) = fixture(&[("entry.ts", source)]).await;
+    std::fs::write(
+        dir.path().join("errconfig.toml"),
+        "files = ['*.ts']\n[checks]\ncast_catch = true",
+    )
+    .unwrap();
+    editor
+        .update(&dir.path().to_path_buf(), &HashMap::new())
+        .await
+        .unwrap();
+    let entry = path(&dir, "entry.ts");
+    assert_eq!(editor.diagnostics[&entry].len(), 1);
+    assert!(
+        editor.diagnostics[&entry][0]
+            .message
+            .contains("HelloError | RangeError | TypeError")
+    );
+    assert!(
+        calls(&editor, &entry, "new HelloError(\"Nope\")")[0]
+            .errors
+            .is_empty()
+    );
+    let corrected = source.replace(
+        "catch (err_) {",
+        "catch (err_) { const err = err_ as HelloError | RangeError | TypeError;",
+    );
+    editor
+        .update(
+            &dir.path().to_path_buf(),
+            &HashMap::from([(entry.clone(), corrected)]),
+        )
+        .await
+        .unwrap();
+    assert!(editor.diagnostics[&entry].is_empty());
+}
+
+#[tokio::test]
+async fn error_name_writes_preserve_uncertainty_for_modified_receivers() {
+    for source in [
+        "class Custom extends Error { constructor() { super(); Object.freeze(this); this.name = 'Custom'; } }",
+        "class Custom extends Error { constructor() { super(); this.name = 'Custom'; } set name(value) { throw new RangeError(); } }",
+        "class Custom extends Error { field = Object.freeze(this); constructor() { super(); this.name = 'Custom'; } }",
+        "class Base { constructor() { return external; } } class Custom extends Base { constructor() { super(); this.name = 'Custom'; } }",
+        "class Custom extends Error { constructor() { super(); this.name = external(this); } }",
+    ] {
+        let (dir, editor) = fixture(&[("entry.ts", &format!("{source} new Custom();"))]).await;
+        let entry = path(&dir, "entry.ts");
+        assert!(
+            calls(&editor, &entry, "new Custom()")[0]
+                .errors
+                .contains(&"unknown".into()),
+            "{source}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn rotate32_edit_keeps_standard_error_identity_with_test_runner_globals() {
     let source = r#"
         import './runner';

@@ -27,6 +27,27 @@ impl RunAsync for EscCliCmdBuild {
         */
 
         project.check_files().await?;
+        if let EscProjectState::Checked(state) = &project.state {
+            let mut diagnostics = state
+                .diagnostics
+                .iter()
+                .flat_map(|(module, reports)| reports.iter().map(move |report| (module, report)))
+                .collect::<Vec<_>>();
+            diagnostics.sort_by_key(|(module, report)| (module.as_str(), report.start));
+            for (module, report) in &diagnostics {
+                let source = state.checked_files[*module].source();
+                let prefix = &source[..report.start as usize];
+                let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+                let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                eprintln!(
+                    "{module}:{line}:{column}: error[cast-catch]: {}",
+                    report.message
+                );
+            }
+            if !diagnostics.is_empty() {
+                anyhow::bail!("{} catch cast check(s) failed", diagnostics.len());
+            }
+        }
 
         /*
         if let EscProjectState::Checked(state) = &project.state {

@@ -1,4 +1,4 @@
-use errorscript::{EscCallReport, EscEditor, EscModulePath};
+use errorscript::{EscCallReport, EscCheckDiagnostic, EscEditor, EscModulePath};
 use napi_derive::napi;
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, Notify};
@@ -25,6 +25,7 @@ struct Workspace {
 }
 
 struct Snapshot {
+    diagnostics: Vec<EscCheckDiagnostic>,
     text: String,
     reports: Vec<EscCallReport>,
 }
@@ -65,6 +66,7 @@ impl Backend {
                     let error = result.err().map(|error| format!("ErrorScript: {error:#}"));
                     if error.is_some() {
                         editor.reports.clear();
+                        editor.diagnostics.clear();
                     }
                     let snapshots = overlays
                         .keys()
@@ -72,6 +74,11 @@ impl Backend {
                             Some((
                                 path.clone(),
                                 Snapshot {
+                                    diagnostics: editor
+                                        .diagnostics
+                                        .get(path)
+                                        .cloned()
+                                        .unwrap_or_default(),
                                     text: editor.source(path)?.to_owned(),
                                     reports: editor.reports.get(path).cloned().unwrap_or_default(),
                                 },
@@ -123,7 +130,7 @@ fn publications(workspace: &Workspace) -> Vec<(Url, i32, Vec<Diagnostic>)> {
         .iter()
         .map(|(uri, (version, text))| {
             let lines = LineIndex::new(text);
-            let diagnostics = module_path(uri)
+            let mut diagnostics: Vec<Diagnostic> = module_path(uri)
                 .and_then(|path| workspace.snapshots.get(&path))
                 .into_iter()
                 .flat_map(|snapshot| &snapshot.reports)
@@ -140,6 +147,17 @@ fn publications(workspace: &Workspace) -> Vec<(Url, i32, Vec<Diagnostic>)> {
                     ..Default::default()
                 })
                 .collect();
+            if let Some(snapshot) = module_path(uri).and_then(|path| workspace.snapshots.get(&path))
+            {
+                diagnostics.extend(snapshot.diagnostics.iter().map(|report| Diagnostic {
+                    range: lines.range(text, report.start, report.end),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::String("cast-catch".into())),
+                    source: Some("ErrorScript".into()),
+                    message: report.message.clone(),
+                    ..Default::default()
+                }));
+            }
             (uri.clone(), *version, diagnostics)
         })
         .collect()

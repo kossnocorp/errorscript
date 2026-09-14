@@ -310,6 +310,43 @@ test("native stdio server lifecycle, hover, and diagnostics", async ({ onTestFin
     .map((message) => (message.params as { version: number }).version);
   expect(versions).toEqual([24]);
   await diagnostic(uri, 24);
+  await writeFile(
+    join(directory, "errconfig.toml"),
+    'files = ["*.ts"]\n[checks]\ncast_catch = true',
+  );
+  send({
+    method: "workspace/didChangeWatchedFiles",
+    params: {
+      changes: [{ uri: pathToFileURL(join(directory, "errconfig.toml")).href, type: 2 }],
+    },
+  });
+  const catchText = "try { throw new Error(); } catch (err_) { const err = err_ as TypeError; }";
+  send({
+    method: "textDocument/didChange",
+    params: {
+      textDocument: { uri, version: 25 },
+      contentChanges: [{ text: catchText }],
+    },
+  });
+  expect((await diagnostic(uri, 25)).params).toMatchObject({
+    diagnostics: [
+      {
+        code: "cast-catch",
+        severity: 1,
+        source: "ErrorScript",
+        range: { start: { line: 0, character: 27 }, end: { line: 0, character: 41 } },
+        message: expect.stringContaining("const err = err_ as Error;"),
+      },
+    ],
+  });
+  send({
+    method: "textDocument/didChange",
+    params: {
+      textDocument: { uri, version: 26 },
+      contentChanges: [{ text: catchText.replace("as TypeError", "as Error") }],
+    },
+  });
+  expect((await diagnostic(uri, 26)).params).toMatchObject({ diagnostics: [] });
   send({ method: "textDocument/didClose", params: { textDocument: { uri } } });
   expect((await diagnostic()).params).toMatchObject({ uri, diagnostics: [] });
   send({ id: 3, method: "shutdown" });

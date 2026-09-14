@@ -8,7 +8,7 @@ impl EscProject {
             EscProjectState::Checked(_) => return Ok(()),
         };
         let call_graph = EscCallGraph::build(parsed, &self.repo_path)?;
-        let (errors, call_errors) = resolve_call_errors(parsed, &call_graph).await?;
+        let (errors, call_errors, catches) = resolve_call_errors(parsed, &call_graph).await?;
 
         // Build successfully before moving the modules so errors preserve Parsed state.
         let EscProjectState::Parsed(parsed) =
@@ -16,12 +16,51 @@ impl EscProject {
         else {
             unreachable!();
         };
-        self.state = EscProjectState::Checked(Box::new(EscProjectStateChecked {
+        let mut checked = EscProjectStateChecked {
             checked_files: parsed.parsed_files,
             call_graph,
             errors,
             call_errors,
-        }));
+            diagnostics: HashMap::new(),
+        };
+        if self
+            .config
+            .as_ref()
+            .is_some_and(|config| config.manifest.checks.cast_catch)
+        {
+            for ((module, _), caught) in catches {
+                let path = module.as_relative_path().to_path(&self.repo_path);
+                if path
+                    .components()
+                    .any(|part| part.as_os_str() == "node_modules")
+                    || caught.errors.is_empty()
+                    || caught.errors.contains(&EscErrorType::UNKNOWN)
+                    || caught.asserted.as_ref() == Some(&caught.errors)
+                {
+                    continue;
+                }
+                let mut names = caught
+                    .errors
+                    .iter()
+                    .map(|error| crate::editor::error_name(&checked, error))
+                    .collect::<Vec<_>>();
+                names.sort();
+                names.dedup();
+                checked
+                    .diagnostics
+                    .entry(module)
+                    .or_default()
+                    .push(EscCheckDiagnostic {
+                        start: caught.start,
+                        end: caught.end,
+                        message: format!(
+                            "Expected catch (err_) with first statement `const err = err_ as {};`.",
+                            names.join(" | ")
+                        ),
+                    });
+            }
+        }
+        self.state = EscProjectState::Checked(Box::new(checked));
 
         Ok(())
     }

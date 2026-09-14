@@ -1,4 +1,5 @@
 use super::*;
+use oxc_span::GetSpan;
 use oxc_syntax::operator::{LogicalOperator, UnaryOperator};
 
 impl Analyzer<'_, '_> {
@@ -624,9 +625,114 @@ impl Analyzer<'_, '_> {
                 env.insert(symbol, value.clone());
             }
             Flow::normal(env, value)
+        } else if self.initial_error_name(target) {
+            Flow::normal(env, value)
         } else {
             self.unknown(env).value(value)
         }
+    }
+
+    /// A fresh native Error has an extensible instance and a writable `name`.
+    /// Recognize the common initialization directly after super(), before the
+    /// instance can escape or acquire user-defined property descriptors.
+    fn initial_error_name(&self, target: &AssignmentTarget<'_>) -> bool {
+        let Some(member) = target.as_member_expression() else {
+            return false;
+        };
+        if member.static_property_name() != Some("name")
+            || !matches!(member.object(), Expression::ThisExpression(_))
+        {
+            return false;
+        }
+        let node = member.object().node_id();
+        let Some(AstKind::Function(function)) =
+            self.semantic.nodes().ancestor_kinds(node).find(|kind| {
+                matches!(
+                    kind,
+                    AstKind::Function(_) | AstKind::ArrowFunctionExpression(_)
+                )
+            })
+        else {
+            return false;
+        };
+        let AstKind::MethodDefinition(method) =
+            self.semantic.nodes().parent_kind(function.node_id.get())
+        else {
+            return false;
+        };
+        if method.kind != MethodDefinitionKind::Constructor {
+            return false;
+        }
+        let Some(body) = &function.body else {
+            return false;
+        };
+        let [
+            Statement::ExpressionStatement(first),
+            Statement::ExpressionStatement(second),
+            ..,
+        ] = body.statements.as_slice()
+        else {
+            return false;
+        };
+        let Expression::CallExpression(call) = &first.expression else {
+            return false;
+        };
+        if !matches!(call.callee, Expression::Super(_)) {
+            return false;
+        }
+        let Expression::AssignmentExpression(assignment) = &second.expression else {
+            return false;
+        };
+        if assignment.operator.as_str() != "="
+            || assignment.left.span() != target.span()
+            || !matches!(assignment.right, Expression::StringLiteral(_))
+        {
+            return false;
+        }
+        let Some(AstKind::Class(class)) = self
+            .semantic
+            .nodes()
+            .ancestor_kinds(function.node_id.get())
+            .find(|kind| matches!(kind, AstKind::Class(_)))
+        else {
+            return false;
+        };
+        // Fields run as part of super() completion and may change the receiver.
+        // Accessors or decorators can also change the standard property contract.
+        if !class.decorators.is_empty()
+            || class.body.body.iter().any(|element| match element {
+                ClassElement::MethodDefinition(method) => {
+                    !method.decorators.is_empty()
+                        || (method.kind != MethodDefinitionKind::Constructor
+                            && (method.computed
+                                || method.key.static_name().as_deref() == Some("name")))
+                }
+                _ => true,
+            })
+        {
+            return false;
+        }
+        let Some(call) = self.calls.get(&(self.module.clone(), call.node_id.get())) else {
+            return false;
+        };
+        !call.unresolved
+            && call.targets.is_empty()
+            && !call.global_calls.is_empty()
+            && call.global_calls.iter().all(|path| {
+                self.graph.global(path).is_some_and(|global| {
+                    matches!(
+                        global.path,
+                        "Error"
+                            | "TypeError"
+                            | "RangeError"
+                            | "ReferenceError"
+                            | "SyntaxError"
+                            | "URIError"
+                            | "EvalError"
+                            | "AggregateError"
+                    )
+                })
+            })
     }
 
     pub(super) fn property_key(&self, key: &PropertyKey<'_>, computed: bool, env: Env) -> Flow {

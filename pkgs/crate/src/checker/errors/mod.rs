@@ -245,6 +245,7 @@ struct Analyzer<'s, 'a> {
 }
 
 struct Capture {
+    catches: RefCell<HashMap<NodeId, EscCatchErrors>>,
     owner: Option<EscFnId>,
     calls: RefCell<HashMap<NodeId, EscCallErrors>>,
 }

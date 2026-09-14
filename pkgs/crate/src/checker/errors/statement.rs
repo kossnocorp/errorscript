@@ -45,6 +45,33 @@ impl Analyzer<'_, '_> {
                 if let Some(handler) = &statement.handler
                     && let Some(thrown) = flow.take(&Completion::Throw)
                 {
+                    let accessed = handler.param.as_ref().is_some_and(|param| match &param.pattern {
+                        BindingPattern::BindingIdentifier(binding) => binding.symbol_id.get().is_some_and(|symbol|
+                            self.semantic.scoping().get_resolved_references(symbol).any(|reference| reference.is_read())),
+                        // Destructuring itself accesses the caught value, even
+                        // when none of the extracted bindings are used later.
+                        _ => true,
+                    });
+                    if accessed && let Some(capture) = self.capture {
+                        let mut catches = capture.catches.borrow_mut();
+                        let record = catches.entry(handler.node_id.get()).or_insert_with(|| {
+                            let asserted = (|| {
+                                let BindingPattern::BindingIdentifier(param) = &handler.param.as_ref()?.pattern else { return None; };
+                                if param.name != "err_" { return None; }
+                                let Statement::VariableDeclaration(declaration) = handler.body.body.first()? else { return None; };
+                                if declaration.kind != VariableDeclarationKind::Const || declaration.declarations.len() != 1 { return None; }
+                                let declaration = &declaration.declarations[0];
+                                let BindingPattern::BindingIdentifier(binding) = &declaration.id else { return None; };
+                                if binding.name != "err" { return None; }
+                                let Expression::TSAsExpression(cast) = declaration.init.as_ref()? else { return None; };
+                                let Expression::Identifier(value) = cast.expression.get_inner_expression() else { return None; };
+                                if value.name != "err_" { return None; }
+                                Some(self.annotation(&cast.type_annotation).types.into_iter().collect())
+                            })();
+                            EscCatchErrors { start: handler.span.start, end: handler.body.span.start + 1, asserted, ..Default::default() }
+                        });
+                        record.errors.extend(thrown.value.types.iter().cloned());
+                    }
                     let caught = if let Some(param) = &handler.param {
                         self.bind(&param.pattern, thrown.env, Value::types(thrown.value.types))
                     } else { Flow::normal(thrown.env, Value::undefined()) };

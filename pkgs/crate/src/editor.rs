@@ -20,6 +20,8 @@ pub struct EscCallReport {
 pub struct EscEditor {
     modules: HashMap<EscModulePath, EscModule>,
     pub reports: HashMap<EscModulePath, Vec<EscCallReport>>,
+    pub diagnostics: HashMap<EscModulePath, Vec<EscCheckDiagnostic>>,
+    cast_catch: bool,
     shared_globals: bool,
 }
 
@@ -41,6 +43,14 @@ impl EscEditor {
         pending.extend(overlays.keys().cloned());
         let mut seen = HashSet::new();
         let mut changed = HashSet::new();
+        let cast_catch = project
+            .config
+            .as_ref()
+            .is_some_and(|config| config.manifest.checks.cast_catch);
+        if self.cast_catch != cast_catch {
+            changed.extend(self.modules.keys().cloned());
+            self.cast_catch = cast_catch;
+        }
         let mut edges = Vec::new();
         for (path, module) in &self.modules {
             edges.extend(
@@ -150,6 +160,7 @@ impl EscEditor {
         let mut parsed_files = HashMap::new();
         for path in &changed {
             self.reports.remove(path);
+            self.diagnostics.remove(path);
             if let Some(module) = self.modules.remove(path) {
                 let id = project.module_id(path)?;
                 paths.insert(id.clone(), path.clone());
@@ -162,6 +173,10 @@ impl EscEditor {
             EscProjectState::Checked(state) => {
                 for (id, path) in &paths {
                     self.reports.insert(path.clone(), reports(&state, id));
+                    self.diagnostics.insert(
+                        path.clone(),
+                        state.diagnostics.get(id).cloned().unwrap_or_default(),
+                    );
                 }
                 for (id, module) in state.checked_files {
                     self.modules.insert(paths[&id].clone(), module);
@@ -179,7 +194,7 @@ impl EscEditor {
     }
 }
 
-fn error_name(state: &EscProjectStateChecked, error: &EscErrorType) -> String {
+pub(crate) fn error_name(state: &EscProjectStateChecked, error: &EscErrorType) -> String {
     match error {
         EscErrorType::Buildin(name) => name.to_string(),
         EscErrorType::Node(id) => state

@@ -6,6 +6,11 @@ use std::fmt::{Display, Formatter};
 pub struct EscModulePath(EscPath);
 
 impl EscModulePath {
+    pub fn is_external(&self) -> bool {
+        self.as_path()
+            .components()
+            .any(|part| part.as_os_str() == "node_modules")
+    }
     pub fn try_new(path: PathBuf) -> Result<Self> {
         EscPath::try_new(path).map(Self)
     }

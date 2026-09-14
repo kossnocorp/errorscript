@@ -335,6 +335,7 @@ pub(crate) async fn resolve_call_errors(
 ) -> Result<(
     HashMap<EscFnId, HashSet<EscErrorType>>,
     HashMap<(EscModuleId, NodeId), EscCallErrors>,
+    HashMap<(EscModuleId, NodeId), EscCatchErrors>,
 )> {
     let summaries = resolve_summaries(
         parsed,
@@ -378,10 +379,12 @@ pub(crate) async fn resolve_call_errors(
         })
         .collect();
     let mut effects = HashMap::new();
+    let mut catches = HashMap::new();
     for (id, module) in &parsed.parsed_files {
         module.with_semantic(|result| {
             let bindings = bindings::BindingFacts::new(&result.semantic);
             let mut capture = Capture {
+                catches: RefCell::new(HashMap::new()),
                 owner: None,
                 calls: RefCell::new(HashMap::new()),
             };
@@ -414,6 +417,13 @@ pub(crate) async fn resolve_call_errors(
                 }
             }
             let mut captured = capture.calls.into_inner();
+            catches.extend(
+                capture
+                    .catches
+                    .into_inner()
+                    .into_iter()
+                    .map(|(node, record)| ((id.clone(), node), record)),
+            );
             let analyzer = Analyzer {
                 bindings: &bindings,
                 modules: &modules,
@@ -468,7 +478,7 @@ pub(crate) async fn resolve_call_errors(
             }
         });
     }
-    Ok((errors, effects))
+    Ok((errors, effects, catches))
 }
 
 async fn resolve_summaries(
