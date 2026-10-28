@@ -60,6 +60,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build CLI
+        shell: bash
         run: mise //pkgs/bin:build ${{ matrix.target }}
 
       - name: Derive Bin Ext
