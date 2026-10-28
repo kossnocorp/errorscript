@@ -24,6 +24,9 @@ idiomatic_version_file_enable_tools = ["rust"] # Use rust-toolchain.toml
 
 # Tasks ========================================================================
 
+[tasks."subs/init"]
+run = "git submodule update --init --recursive"
+
 [tasks.install]
 depends = ["install/pnpm"]
 
