@@ -1,0 +1,8 @@
+[tasks.generate]
+run = "cargo run --package errorscript-lib --"
+
+[tasks.check]
+run = "cargo run --package errorscript-lib -- --check"
+
+[tasks.test]
+run = "cargo test --package errorscript-lib"
