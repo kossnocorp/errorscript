@@ -10,7 +10,9 @@
         "--extensionDevelopmentPath=${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development",
         "${workspaceFolder}/examples/errs"
       ],
-      "outFiles": ["${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development/**/*.js"],
+      "outFiles": [
+        "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development/**/*.js"
+      ],
       "autoAttachChildProcesses": true
     }
   ]

@@ -2,7 +2,7 @@
   "name": "@errorscript/repo",
   "private": true,
   "devDependencies": {
-    "oxfmt": "^0.66.0",
+    "oxfmt": "^0.75.0",
     "typescript": "7.1.0-dev.20260913.1"
   }
 }

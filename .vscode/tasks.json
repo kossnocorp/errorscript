@@ -6,7 +6,9 @@
       "type": "shell",
       "command": "mise",
       "args": [":build:dev"],
-      "options": { "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features" },
+      "options": {
+        "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features"
+      },
       "problemMatcher": ["$rustc", "$tsc"],
       "group": { "kind": "build", "isDefault": true }
     },
@@ -15,7 +17,9 @@
       "type": "shell",
       "command": "mise",
       "args": [":build/package"],
-      "options": { "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features" },
+      "options": {
+        "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features"
+      },
       "problemMatcher": ["$rustc", "$tsc"]
     }
   ]
