@@ -1,0 +1,86 @@
+name: Build
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      artifact_suffix:
+        description: Suffix appended to uploaded artifact names. Defaults to `github.sha` if not provided.
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build Binaries
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          # Linux --------------------------------------------------------------
+
+          # x86
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+
+          # ARM
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+
+          # macOS --------------------------------------------------------------
+
+          # x86
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+
+          # ARM
+          - os: macos-26
+            target: aarch64-apple-darwin
+
+          # Windows ------------------------------------------------------------
+
+          # x86
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+          # ARM
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+
+      - name: Set Up Dev Env
+        uses: ./.github/actions/setup
+
+      - name: Add Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build CLI
+        run: mise //pkgs/bin:build ${{ matrix.target }}
+
+      - name: Derive Bin Ext
+        id: bin_ext
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          ext=""
+          if [[ "$TARGET" == *"windows"* ]]; then
+            ext=".exe"
+          fi
+          echo "value=$ext" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CLI Binaries
+        uses: actions/upload-artifact@v6
+        with:
+          path: pkgs/bin/dist/${{ matrix.target }}/production/errs${{ steps.bin_ext.outputs.value }}
+          name: errs-${{ inputs.artifact_suffix || github.sha }}-${{ matrix.target }}${{ steps.bin_ext.outputs.value }}
+          if-no-files-found: error
+
+      - name: Display Stats
+        if: always()
+        uses: ./.github/actions/stats

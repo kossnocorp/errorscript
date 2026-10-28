@@ -1,0 +1,53 @@
+name: Release VS Code
+
+on:
+  push:
+    tags:
+      - "vscode@[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  qa:
+    name: Run QA
+    uses: ./.github/workflows/qa.yml
+
+  publish:
+    name: Publish VS Code Extension
+    needs: qa
+    # The extension embeds the compiler, so publish a VSIX for each native host.
+    runs-on: ${{ matrix.os }}
+    environment: release-vscode
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-26-intel
+          - macos-26
+          - windows-latest
+          - windows-11-arm
+
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set Up Dev Env
+        uses: ./.github/actions/setup
+        with:
+          enable-node: true
+
+      - name: Publish Extension
+        run: mise //pkgs/vscode:publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Upload Extension Package
+        uses: actions/upload-artifact@v6
+        with:
+          path: pkgs/vscode/dist/production/*.vsix
+          name: vscode-${{ github.ref_name }}-${{ matrix.os }}
+          if-no-files-found: error

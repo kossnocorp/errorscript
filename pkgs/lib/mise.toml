@@ -1,8 +1,19 @@
 [tasks.generate]
-run = "cargo run --package errorscript-lib --"
+run = "cargo run --package errorscript_lib -- --ts-libs subs/errs/crates/tsrs_vfs/libs"
+dir = "../.."
 
 [tasks.check]
-run = "cargo run --package errorscript-lib -- --check"
+run = "cargo run --package errorscript_lib -- --ts-libs subs/errs/crates/tsrs_vfs/libs --check"
+dir = "../.."
 
 [tasks.test]
-run = "cargo test --package errorscript-lib"
+depends = ["test/rust", "test/ts"]
+
+[tasks."test/rust"]
+run = "cargo test --package errorscript_lib --locked"
+
+[tasks."test/ts"]
+run = "pnpm exec vitest run"
+
+[tasks."test/ts:watch"]
+run = "pnpm exec vitest"

@@ -2,21 +2,21 @@
 
 lockfile_version = 1
 
-[[tools.cargo-binstall]]
-version = "1.21.0"
-backend = "aqua:cargo-bins/cargo-binstall"
+[[tools."cargo:cargo-nextest"]]
+version = "0.9.150"
+backend = "cargo:cargo-nextest"
 specifiers = ["latest"]
-
-[tools.cargo-binstall."platforms.linux-x64"]
-checksum = "sha256:a753a83ea4c79a629790e003822d4e82bec5bf839120f1826969c2401bd9f559"
-url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.21.0/cargo-binstall-x86_64-unknown-linux-gnu.tgz"
-url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/476612775"
-provenance = "github-attestations"
 
 [[tools.fnox]]
 version = "1.31.1"
 backend = "github:jdx/fnox"
 specifiers = ["latest"]
+
+[tools.fnox."platforms.linux-arm64"]
+checksum = "sha256:807d74596112622ea1cb0c24100d3bbf42fb5a9f5efce6a2242931d823ab0f63"
+url = "https://github.com/jdx/fnox/releases/download/v1.31.1/fnox-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427415"
+provenance = "github-attestations"
 
 [tools.fnox."platforms.linux-x64"]
 checksum = "sha256:f87808cb1b5db2382daf244ced84f342ab01352654df2f50faa1cd1565941102"
@@ -25,24 +25,140 @@ url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427453"
 provenance = "github-attestations"
 provenance_verified = true
 
-[[tools.git-cliff]]
-version = "2.12.0"
-backend = "aqua:orhun/git-cliff"
+[tools.fnox."platforms.macos-arm64"]
+checksum = "sha256:8426d9a2b7fc3a82d73d1a5fb7831d749d195ac811efb598dfbd96222d52c293"
+url = "https://github.com/jdx/fnox/releases/download/v1.31.1/fnox-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427417"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.macos-x64"]
+checksum = "sha256:e7cbce08f71c9b6d90c68f535fc757a26a673a4a247a31bce66356da971c915e"
+url = "https://github.com/jdx/fnox/releases/download/v1.31.1/fnox-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427412"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.windows-arm64"]
+checksum = "sha256:03dc852e3dacef2d8d9be9b81ec8b99f5dd1bc31a079927c5c261782da990ea1"
+url = "https://github.com/jdx/fnox/releases/download/v1.31.1/fnox-aarch64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427411"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.windows-x64"]
+checksum = "sha256:49ea9a62555cea64d57daf08658f4074abcd1055546adcd7047a4ec324c0c078"
+url = "https://github.com/jdx/fnox/releases/download/v1.31.1/fnox-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/488427448"
+provenance = "github-attestations"
+
+[[tools.gh]]
+version = "2.102.1"
+backend = "aqua:cli/cli"
 specifiers = ["latest"]
 
-[tools.git-cliff."platforms.linux-x64"]
-checksum = "sha256:6241bd23554daf527ca8ff0dc475a272b0155bede8a000e7a9d74b771036a7bd"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/343377955"
+[tools.gh."platforms.linux-arm64"]
+checksum = "sha256:5019b3cc6e8a03bb4d88600f8dbda2add8e6407705c159b0c63151036e77a1af"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660284837"
+provenance = "github-attestations"
+
+[tools.gh."platforms.linux-x64"]
+checksum = "sha256:77b9e297e94c50336823d0f84de7ef1be60cba704601fa0d98f129f47a94987b"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660284822"
+provenance = "github-attestations"
+
+[tools.gh."platforms.macos-arm64"]
+checksum = "sha256:08bfef98b50c553df122bb34ee8dcf415cae7d3b108891488964a0df07aa2aeb"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_macOS_arm64.zip"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660284918"
+provenance = "github-attestations"
+
+[tools.gh."platforms.macos-x64"]
+checksum = "sha256:91c5fbd493274b545b03ef32a89c2a21238393c0c0b1108210967199b3230d9d"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_macOS_amd64.zip"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660284911"
+provenance = "github-attestations"
+
+[tools.gh."platforms.windows-arm64"]
+checksum = "sha256:1fe7462f72424f9309f5444b4c24e2246f5c40130afa0b1c61a3fdc6fc54cc04"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_windows_arm64.zip"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660285030"
+provenance = "github-attestations"
+
+[tools.gh."platforms.windows-x64"]
+checksum = "sha256:843c0dc119f014d9458aeaff96c44c16fc4b8e556c1c4c5df9bab5ba002356e9"
+url = "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_windows_amd64.zip"
+url_api = "https://api.github.com/repos/cli/cli/releases/assets/660284981"
+provenance = "github-attestations"
+
+[[tools.jaq]]
+version = "3.1.1"
+backend = "aqua:01mf02/jaq"
+specifiers = ["latest"]
+
+[tools.jaq."platforms.linux-arm64"]
+checksum = "sha256:bdda42d5a8c060a2c7916b287a227e7750d5fccbd4c37aacf0ab863010921829"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-aarch64-unknown-linux-gnu"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502327954"
+
+[tools.jaq."platforms.linux-x64"]
+checksum = "sha256:5922c7b67d9bd6841d6676d1f954410c6bf04b47203dcb661c4f052dfef7f454"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-x86_64-unknown-linux-gnu"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502327122"
+
+[tools.jaq."platforms.macos-arm64"]
+checksum = "sha256:b1a2e63384e156d90bbf61a1142302aa59bfebd8c89e24dfc9b5747618880fcd"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-aarch64-apple-darwin"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502328070"
+
+[tools.jaq."platforms.macos-x64"]
+checksum = "sha256:34b1a9495dbd28df09ad83c832a2ae4be60657d8c24e72f28565cd19b98ed0af"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-x86_64-apple-darwin"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502327833"
+
+[tools.jaq."platforms.windows-arm64"]
+checksum = "sha256:7b2f5153d11118c3ccff01859743e09842cabc42ba08f8876489c1be30d1d08d"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-x86_64-pc-windows-msvc.exe"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502328777"
+
+[tools.jaq."platforms.windows-x64"]
+checksum = "sha256:7b2f5153d11118c3ccff01859743e09842cabc42ba08f8876489c1be30d1d08d"
+checksum_source = "mise-versions"
+url = "https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-x86_64-pc-windows-msvc.exe"
+url_api = "https://api.github.com/repos/01mf02/jaq/releases/assets/502328777"
 
 [[tools.node]]
 version = "24.19.0"
 backend = "core:node"
 specifiers = ["24"]
 
+[tools.node."platforms.linux-arm64"]
+checksum = "sha256:d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f"
+url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-arm64.tar.gz"
+
 [tools.node."platforms.linux-x64"]
 checksum = "sha256:f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4"
 url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.gz"
+
+[tools.node."platforms.macos-arm64"]
+checksum = "sha256:8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d"
+url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-arm64.tar.gz"
+
+[tools.node."platforms.macos-x64"]
+checksum = "sha256:d1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316"
+url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-x64.tar.gz"
+
+[tools.node."platforms.windows-arm64"]
+checksum = "sha256:8502f4a50b458d4cc38ed8f2001556c2cd239d464920f74017926ccb1e1c157f"
+url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-arm64.zip"
+
+[tools.node."platforms.windows-x64"]
+checksum = "sha256:57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73"
+url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-x64.zip"
 
 [[tools."npm:pnpm"]]
 version = "next-12"
@@ -52,21 +168,10 @@ specifiers = ["next-12"]
 [tools."npm:pnpm".options]
 allow_builds = "true"
 
-[[tools.pnpm]]
-version = "11.25.0"
-backend = "aqua:pnpm/pnpm"
-specifiers = ["latest"]
-
-[tools.pnpm."platforms.linux-x64"]
-checksum = "sha256:11caeed8b581d460638f836f10f6ead19cbf08d774a5b8e502628b20ebf3ac43"
-url = "https://github.com/pnpm/pnpm/releases/download/v11.25.0/pnpm-linux-x64.tar.gz"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/535298945"
-provenance = "github-attestations"
-
 [[tools.rust]]
-version = "stable"
+version = "1.99.1"
 backend = "core:rust"
-specifiers = ["stable"]
+specifiers = ["1.99.1"]
 
 [tools.rust.options]
 components = "clippy,rustfmt"
@@ -76,7 +181,78 @@ version = "0.17.0"
 backend = "aqua:mozilla/sccache"
 specifiers = ["latest"]
 
+[tools.sccache."platforms.linux-arm64"]
+checksum = "sha256:821a86343191aa1cbab74bd42f9e93c9a63bf85e4742945f40d3ae84193c1c77"
+checksum_source = "mise-versions"
+url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493678924"
+
 [tools.sccache."platforms.linux-x64"]
 checksum = "sha256:67c4a96dd237c1f518f6b36083f270f9976d516f1e57fce891755ea782e50006"
 url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493679099"
+
+[tools.sccache."platforms.macos-arm64"]
+checksum = "sha256:0c560bfba31aef5bdfb4fb3d2677f6e61d71c5c00952f2a83344f47aa31f00f1"
+checksum_source = "mise-versions"
+url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493678886"
+
+[tools.sccache."platforms.macos-x64"]
+checksum = "sha256:c2144cafbfe3d22e34ae637f9974ce53613543ac19477fdb287df22ea3668261"
+checksum_source = "mise-versions"
+url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493679070"
+
+[tools.sccache."platforms.windows-arm64"]
+checksum = "sha256:f1bec6836a764f5f0a01ae3b5d47d1778a6b80171f9f49722e246cdff27a9f3b"
+checksum_source = "mise-versions"
+url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-aarch64-pc-windows-msvc.tar.gz"
+url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493678898"
+
+[tools.sccache."platforms.windows-x64"]
+checksum = "sha256:caf1932d76a909c909b7a2e41443cdfe3c79a49a380da1a22fa422e1d00d3ca7"
+checksum_source = "mise-versions"
+url = "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-pc-windows-msvc.tar.gz"
+url_api = "https://api.github.com/repos/mozilla/sccache/releases/assets/493679085"
+
+[[tools.watchexec]]
+version = "2.8.0"
+backend = "aqua:watchexec/watchexec"
+specifiers = ["latest"]
+
+[tools.watchexec."platforms.linux-arm64"]
+checksum = "sha256:aaa5eb7e62e9ce99cad7f14260265aaa9df8884e195c0661ab011825a6d61634"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-aarch64-unknown-linux-gnu.tar.xz"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138796"
+
+[tools.watchexec."platforms.linux-x64"]
+checksum = "sha256:21839e9840ef592b4d571885ccbd692f54ae5bd4231f3caf29fcf31fa7723afe"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-unknown-linux-gnu.tar.xz"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138794"
+
+[tools.watchexec."platforms.macos-arm64"]
+checksum = "sha256:8da8bdbfb8568138616a082c05a87224e08d5cb2994feb956426291cf0c6fe10"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-aarch64-apple-darwin.tar.xz"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138836"
+
+[tools.watchexec."platforms.macos-x64"]
+checksum = "sha256:b7f694ad19c1cf168388f3295a5e825425f7dac5cd27cffd2d89a51ed4ab0f22"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-apple-darwin.tar.xz"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138831"
+
+[tools.watchexec."platforms.windows-arm64"]
+checksum = "sha256:0c872fc18c8e801f21614c6daf2504a5826d5c705bb67f7a583d879f5410d9ea"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138784"
+
+[tools.watchexec."platforms.windows-x64"]
+checksum = "sha256:0c872fc18c8e801f21614c6daf2504a5826d5c705bb67f7a583d879f5410d9ea"
+checksum_source = "mise-versions"
+url = "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/watchexec/watchexec/releases/assets/616138784"

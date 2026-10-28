@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "cargo run --package errorscript-lib --",
-    "check": "cargo run --package errorscript-lib -- --check",
+    "generate": "cargo run --package errorscript_lib -- --ts-libs ../../subs/errs/crates/tsrs_vfs/libs",
+    "check": "cargo run --package errorscript_lib -- --ts-libs ../../subs/errs/crates/tsrs_vfs/libs --check",
     "test": "vitest run"
   },
   "devDependencies": {

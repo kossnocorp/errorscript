@@ -1,0 +1,29 @@
+[changelog]
+body = """
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+  ### {{ group | striptags | trim | upper_first }}
+  {% for commit in commits %}
+    - {{ commit.message | trim_start_matches(pat="[bin]") | trim | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}))\
+  {% endfor %}
+{% endfor %}
+"""
+trim = true
+render_always = true
+postprocessors = [{ pattern = '<REPO>', replace = "https://github.com/kossnocorp/errorscript" }]
+
+[git]
+conventional_commits = false
+filter_unconventional = false
+commit_preprocessors = [{ pattern = '#([0-9]+)', replace = "[#${1}](<REPO>/issues/${1})" }]
+commit_parsers = [{ message = '^\[bin\]\s+', group = "Changes" }, { message = ".*", skip = true }]
+tag_pattern = '^bin@\d+\.\d+\.\d+$'
+topo_order_commits = true
+sort_commits = "oldest"
+
+[remote.github]
+owner = "kossnocorp"
+repo = "errorscript"

@@ -13,32 +13,105 @@ node = "24"
 "npm:pnpm" = { version = "next-12", allow_builds = true }
 
 # Tools
-cargo-binstall = "latest" # Install cargo binaries
+"cargo:cargo-nextest" = "latest"
+sccache = "latest"
+gh = "latest"
+jaq = "latest"
+fnox = "latest" # Secrets manager
 
 # Settings =====================================================================
 
 [settings]
 lockfile = true
+experimental = true
 idiomatic_version_file_enable_tools = ["rust"] # Use rust-toolchain.toml
 
 
 # Tasks ========================================================================
 
 [tasks."subs/init"]
-run = "git submodule update --init --recursive"
+run = ["git submodule sync --recursive", "git submodule update --init --recursive"]
+
+[tasks.setup]
+depends = ["install"]
 
 [tasks.install]
-depends = ["install/pnpm"]
+depends = ["install/pnpm", "//pkgs/vscode:install"]
 
 [tasks."install/pnpm"]
 run = "pnpm install"
 
-[tasks."build:dev"]
-description = "Builds the development ErrorScript compiler"
-dir = "subs/errs"
-run = "cargo build --profile dev -p tsrs_cli"
+[tasks.check]
+run = "cargo check --workspace --locked"
 
-[tasks.symlink]
-description = "Links the development compiler as ~/.local/bin/errs"
-depends = ["build:dev"]
-run = "node scripts/symlink.mjs"
+[tasks."check:watch"]
+run = "bacon check-all"
+
+[tasks.lint]
+depends = ["lint/rust"]
+
+[tasks."lint:fix"]
+depends = ["lint/rust:fix"]
+
+[tasks."lint:watch"]
+depends = ["lint/rust:watch"]
+
+[tasks."lint/rust"]
+run = "cargo clippy --workspace --all-targets --all-features --locked"
+
+[tasks."lint/rust:fix"]
+run = "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty"
+depends_post = "format/rust"
+
+[tasks."lint/rust:watch"]
+run = "watchexec -e rs,toml,lock -rc reset -- cargo clippy --workspace --all-targets --all-features"
+tools = { watchexec = "latest" }
+
+[tasks.format]
+depends = ["format/base", "format/rust"]
+
+[tasks."format:check"]
+depends = ["format/base:check", "format/rust:check"]
+
+[tasks."format/base"]
+run = "pnpm exec oxfmt"
+
+[tasks."format/base:check"]
+run = "pnpm exec oxfmt --check"
+
+[tasks."format/rust"]
+run = "cargo fmt --all"
+
+[tasks."format/rust:check"]
+run = "cargo fmt --all --check"
+
+[tasks.test]
+depends = ["test/unit", "test/system"]
+
+[tasks."test/unit"]
+depends = ["test/unit/rust", "test/unit/ts"]
+
+[tasks."test/unit:watch"]
+depends = ["test/unit/rust:watch", "test/unit/ts:watch"]
+
+[tasks."test/unit/rust"]
+run = "cargo nextest run --workspace --locked --no-fail-fast"
+
+[tasks."test/unit/rust:watch"]
+run = "watchexec -e rs,toml,lock -rc reset -- cargo nextest run --workspace --no-fail-fast"
+tools = { watchexec = "latest" }
+
+[tasks."test/unit/ts"]
+run = "pnpm --filter @errorscript/lib exec vitest run"
+
+[tasks."test/unit/ts:watch"]
+run = "pnpm --filter @errorscript/lib exec vitest"
+
+[tasks."test/system"]
+depends = ["//pkgs/bin:test"]
+
+[tasks."types/ts"]
+depends = ["//pkgs/vscode:types", "//pkgs/website:types"]
+
+[tasks."types/ts:watch"]
+depends = ["//pkgs/vscode:types:watch", "//pkgs/website:types:watch"]

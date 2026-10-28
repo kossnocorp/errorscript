@@ -7,7 +7,7 @@
       "command": "mise",
       "args": [":build:dev"],
       "options": {
-        "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features"
+        "cwd": "${workspaceFolder}/pkgs/vscode"
       },
       "problemMatcher": ["$rustc", "$tsc"],
       "group": { "kind": "build", "isDefault": true }
@@ -18,7 +18,7 @@
       "command": "mise",
       "args": [":build/package"],
       "options": {
-        "cwd": "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features"
+        "cwd": "${workspaceFolder}/pkgs/vscode"
       },
       "problemMatcher": ["$rustc", "$tsc"]
     }

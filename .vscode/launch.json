@@ -7,12 +7,10 @@
       "request": "launch",
       "preLaunchTask": "errorscript:build:dev",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development",
-        "${workspaceFolder}/examples/errs"
+        "--extensionDevelopmentPath=${workspaceFolder}/pkgs/vscode/dist/development",
+        "${workspaceFolder}/examples"
       ],
-      "outFiles": [
-        "${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development/**/*.js"
-      ],
+      "outFiles": ["${workspaceFolder}/pkgs/vscode/dist/development/**/*.js"],
       "autoAttachChildProcesses": true
     }
   ]

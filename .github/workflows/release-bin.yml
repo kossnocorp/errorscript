@@ -1,0 +1,93 @@
+name: Release Bin
+
+on:
+  push:
+    tags:
+      - "bin@[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  qa:
+    name: Run QA
+    uses: ./.github/workflows/qa.yml
+
+  build:
+    name: Build Binaries
+    uses: ./.github/workflows/build.yml
+    with:
+      artifact_suffix: ${{ github.ref_name }}
+
+  release:
+    name: Publish GitHub Release
+    needs:
+      - qa
+      - build
+    runs-on: ubuntu-latest
+    environment: release-bin
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set Up Dev Env
+        uses: ./.github/actions/setup
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "errs-${{ github.ref_name }}-*"
+          path: downloaded-artifacts
+
+      - name: Collect Release Assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          for artifact_dir in downloaded-artifacts/*; do
+            [ -d "$artifact_dir" ] || continue
+            artifact_name="$(basename "$artifact_dir")"
+            for file in "$artifact_dir"/*; do
+              [ -f "$file" ] || continue
+              cp "$file" "release-assets/$artifact_name"
+            done
+          done
+
+      - name: Attest Release Files
+        id: attest
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes="$(mise //pkgs/bin:changelog)"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes "$notes"
+          else
+            gh release create "$TAG" --notes "$notes" --verify-tag
+          fi
+
+      - name: Upload Release Files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" \
+            release-assets/* \
+            "${{ steps.attest.outputs.bundle-path }}" \
+            --clobber
+
+      - name: Display Stats
+        if: always()
+        uses: ./.github/actions/stats

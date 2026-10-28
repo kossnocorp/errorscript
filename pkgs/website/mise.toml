@@ -1,5 +1,5 @@
 [tasks.dev]
-run = "pnpm exec astro dev --host 0.0.0.0"
+run = "fnox exec -- pnpm exec astro dev --host 0.0.0.0"
 depends = "gen/types"
 
 [tasks.build]
@@ -14,3 +14,12 @@ depends = "build"
 run = "pnpm exec wrangler types"
 sources = ["wrangler.toml"]
 outputs = ["worker-configuration.d.ts"]
+
+[tasks.types]
+description = "Checks website TypeScript types"
+depends = ["gen/types"]
+run = "pnpm exec astro sync && pnpm exec tsc --noEmit"
+
+[tasks."types:watch"]
+depends = ["gen/types"]
+run = "pnpm exec astro sync && pnpm exec tsc --noEmit --watch"

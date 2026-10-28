@@ -1,0 +1,32 @@
+[tasks.build]
+description = "Builds the release ErrorScript compiler"
+usage = '''
+arg "[target]" help="Rust target triple"
+flag "--dev" help="Builds the development binary"
+'''
+run = "./scripts/build.sh"
+
+[tasks."build:release"]
+run = [{ task = "build" }]
+
+[tasks."build:dev"]
+description = "Builds the development ErrorScript compiler"
+run = [{ task = "build", args = ["--dev"] }]
+
+[tasks.symlink]
+description = "Links the development compiler as ~/.local/bin/errs"
+depends = ["build:dev"]
+run = "./scripts/symlink.sh"
+
+[tasks.test]
+description = "Runs the ErrorScript compiler integration tests"
+dir = "../../subs/errs"
+run = "cargo test --locked -p tsrs_cli --test integration errs_test"
+
+[tasks.changelog]
+dir = "../.."
+run = '''
+git-cliff --config pkgs/bin/cliff.toml --offline --latest --strip all
+'''
+quiet = true
+tools = { git-cliff = "latest" }

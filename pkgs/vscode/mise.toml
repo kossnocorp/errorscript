@@ -1,0 +1,43 @@
+[tasks.install]
+run = "npm ci --prefix ../../subs/errs-vscode/extensions/typescript-language-features/src/errs --no-audit --no-fund"
+
+[tasks.build]
+run = "./scripts/build.sh"
+depends = ["install", "//pkgs/bin:build"]
+
+[tasks."build:dev"]
+run = "./scripts/build.sh --dev"
+depends = ["install", "//pkgs/bin:build:dev"]
+
+[tasks."build/package"]
+run = "./scripts/package.sh"
+
+[tasks.package]
+run = "./scripts/package.sh"
+
+[tasks.publish]
+run = "./scripts/publish.sh"
+
+[tasks.version]
+usage = '''
+arg "<version>" help="Extension version to apply"
+'''
+run = "pnpm version {{usage.version}} --no-git-tag-version"
+
+[tasks.types]
+description = "Checks the extension source in the submodule"
+depends = ["install"]
+dir = "../../subs/errs-vscode/extensions/typescript-language-features/src/errs"
+run = "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json"
+
+[tasks."types:watch"]
+depends = ["install"]
+dir = "../../subs/errs-vscode/extensions/typescript-language-features/src/errs"
+run = "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json --watch"
+
+[tasks.test]
+depends = ["test/editor"]
+
+[tasks."test/editor"]
+depends = ["build:dev"]
+run = "node scripts/test.mjs"
