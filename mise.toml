@@ -29,3 +29,13 @@ depends = ["install/pnpm"]
 
 [tasks."install/pnpm"]
 run = "pnpm install"
+
+[tasks."build:dev"]
+description = "Builds the development ErrorScript compiler"
+dir = "subs/errs"
+run = "cargo build --profile dev -p tsrs_cli"
+
+[tasks.symlink]
+description = "Links the development compiler as ~/.local/bin/errs"
+depends = ["build:dev"]
+run = "node scripts/symlink.mjs"

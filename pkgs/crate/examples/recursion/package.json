@@ -1,9 +1,0 @@
-{
-  "name": "@errorscript/example-recursion",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@errorscript/core": "workspace:*",
-    "@types/node": "^20"
-  }
-}

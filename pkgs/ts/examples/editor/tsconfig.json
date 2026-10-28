@@ -1,5 +1,0 @@
-{
-  "extends": "../../../../tsconfig.pkg.json",
-  "compilerOptions": { "allowJs": true, "types": ["node", "vscode"] },
-  "include": ["extension.cjs"]
-}

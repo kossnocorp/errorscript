@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "errorscript:dev",
+      "type": "extensionHost",
+      "request": "launch",
+      "preLaunchTask": "errorscript:build:dev",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development",
+        "${workspaceFolder}/examples/errs"
+      ],
+      "outFiles": ["${workspaceFolder}/subs/errs-vscode/extensions/typescript-language-features/dist/development/**/*.js"],
+      "autoAttachChildProcesses": true
+    }
+  ]
+}

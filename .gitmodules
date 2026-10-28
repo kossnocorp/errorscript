@@ -1,0 +1,6 @@
+[submodule "subs/errs"]
+	path = subs/errs
+	url = git@github.com:kossnocorp/errs.git
+[submodule "subs/errs-vscode"]
+	path = subs/errs-vscode
+	url = git@github.com:kossnocorp/errs-vscode.git
