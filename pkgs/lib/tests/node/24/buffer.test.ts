@@ -1,12 +1,77 @@
 // Synced by errs-lib. Describe paths are managed; test bodies are yours.
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { captureThrown } from "../../support/errors";
 
 describe("node:buffer", () => {
   describe("Blob", () => {
     describe("arrayBuffer", () => {
-      it("TODO", () => {
-        // TODO
+      it("throws TypeError", { tags: ["node-only"] }, async () => {
+        const { Blob } = await import("node:buffer");
+        for (const receiver of [undefined, null, {}, 1, "blob", Blob.prototype]) {
+          // A normal invalid receiver returns a rejected promise, not a throw.
+          const result = Reflect.apply(Blob.prototype.arrayBuffer, receiver, []);
+          await expect(result).rejects.toHaveExactConstructor(TypeError);
+        }
       });
+
+      describe("revoked receiver proxy (synchronous)", () => {
+        it("throws TypeError", { tags: ["node-only"] }, async () => {
+          const { Blob } = await import("node:buffer");
+          const { proxy, revoke } = Proxy.revocable(new Blob([]), {});
+          revoke();
+          expect(captureThrown(() => Blob.prototype.arrayBuffer.call(proxy))).toHaveExactConstructor(TypeError);
+        });
+      });
+
+      for (const failingRead of [1, 2]) {
+        describe(`receiver handle lookup ${failingRead} (synchronous propagation)`, () => {
+          it("throws non-Error value", { tags: ["node-only"] }, async () => {
+            const { Blob } = await import("node:buffer");
+            const sentinel = { supplied: true };
+            let reads = 0;
+            const blob = new Blob([]);
+            const handle = Object.getOwnPropertySymbols(blob).find(key => key.description === "kHandle");
+            expect(handle).toBeDefined();
+            const receiver = new Proxy(blob, {
+              get(target, key, receiver) {
+                if (key === handle && ++reads === failingRead) throw sentinel;
+                return Reflect.get(target, key, receiver);
+              },
+            });
+            expect(captureThrown(() => Blob.prototype.arrayBuffer.call(receiver))).toBe(sentinel);
+            expect(reads).toBe(failingRead);
+          });
+        });
+      }
+
+      for (const condition of ["changed", "removed"] as const) {
+        describe(`file backing ${condition} (rejection)`, () => {
+          it("throws DOMException", { tags: ["node-only"] }, async () => {
+            const { openAsBlob } = await import("node:fs");
+            const { mkdtemp, writeFile, unlink, rm } = await import("node:fs/promises");
+            const { tmpdir } = await import("node:os");
+            const { join } = await import("node:path");
+            const dir = await mkdtemp(join(tmpdir(), "errs-blob-arraybuffer-"));
+            try {
+              const path = join(dir, "data");
+              await writeFile(path, "original");
+              const blob = await openAsBlob(path);
+              if (condition === "changed") {
+                // Size change is deterministic even with coarse filesystem timestamps.
+                await writeFile(path, "different length");
+              } else {
+                await unlink(path);
+              }
+              const result = blob.arrayBuffer();
+              await expect(result).rejects.toHaveExactConstructor(DOMException);
+              // DOMException names identify distinct Web API error categories.
+              await expect(result).rejects.toHaveProperty("name", "NotReadableError");
+            } finally {
+              await rm(dir, { recursive: true, force: true });
+            }
+          });
+        });
+      }
     });
 
     describe("bytes", () => {

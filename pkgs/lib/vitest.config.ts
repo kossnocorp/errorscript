@@ -16,7 +16,7 @@ export default defineConfig({
     maxWorkers: 4,
     retry: 0,
     // Pending inventory entries must not inflate the passing repro count.
-    // A CLI -t overrides this: focus on "throws ...", not the TODO itself.
+    // A CLI -t overrides this: include propagation/controls, but exclude TODOs.
     testNamePattern: /^(?!.*(?:^| > )TODO$)/,
     projects: [
       {
@@ -24,7 +24,7 @@ export default defineConfig({
           name: `node-${nodeVersion}`,
           environment: "node",
           pool: "forks",
-          include: [`tests/node/${nodeVersion}/**/*.test.ts`, "tests/ts/**/*.test.ts"],
+          include: [`tests/node/${nodeVersion}/**/*.test.ts`, "tests/ts/**/*.test.ts", "tests/support/errors.test.ts"],
           exclude: ["tests/ts/webworker*.test.ts", "tests/ts/scripthost.test.ts"],
           setupFiles: ["tests/support/node-version.ts"],
           tags: [
@@ -36,7 +36,7 @@ export default defineConfig({
       {
         test: {
           name: "chromium",
-          include: ["tests/ts/**/*.test.ts"],
+          include: ["tests/ts/**/*.test.ts", "tests/support/errors.test.ts"],
           // ScriptHost needs its own real host before its TODOs can be resolved.
           exclude: ["tests/ts/scripthost.test.ts"],
           tags: [

@@ -1,11 +1,174 @@
 // Synced by errs-lib. Describe paths are managed; test bodies are yours.
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import "../../../support/errors";
 
 describe("node:fs/promises", () => {
   describe("DisposableTempDir", () => {
     describe("[Symbol.asyncDispose]", () => {
-      it("TODO", () => {
-        // TODO
+      describe("captured ASCII-encoded path contains NUL", () => {
+        it("throws TypeError", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          try {
+            const dir = await fs.mkdtempDisposable(join(root, "\u0100-"), "ascii");
+            expect(dir.path).toContain("\0");
+            await expect(dir[Symbol.asyncDispose]()).rejects.toHaveExactConstructor(TypeError);
+          } finally {
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
+      });
+
+      describe("ancestor replaced by a file", () => {
+        it("throws Error", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          const parent = join(root, "parent");
+          try {
+            await fs.mkdir(parent);
+            const dir = await fs.mkdtempDisposable(join(parent, "child-"));
+            await fs.rename(parent, join(root, "moved"));
+            await fs.writeFile(parent, "not a directory");
+            // The method uses its captured path, not this, path, or remove.
+            const hostile = new Proxy(
+              {},
+              {
+                get() {
+                  throw "must not be read";
+                },
+              },
+            );
+            const result = Reflect.apply(dir[Symbol.asyncDispose], hostile, [hostile]);
+            await expect(result).rejects.toHaveExactConstructor(Error);
+          } finally {
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
+      });
+
+      describe("parent is not writable", () => {
+        it("throws Error", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          try {
+            const dir = await fs.mkdtempDisposable(join(root, "child-"));
+            await fs.chmod(root, 0o500);
+            await expect(dir[Symbol.asyncDispose]()).rejects.toHaveExactConstructor(Error);
+          } finally {
+            await fs.chmod(root, 0o700);
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
+      });
+
+      describe("recursive child is not readable", () => {
+        it("throws Error", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          const child = join(root, "child");
+          let locked: string | undefined;
+          try {
+            const dir = await fs.mkdtempDisposable(child);
+            locked = join(dir.path, "locked");
+            await fs.mkdir(locked);
+            await fs.writeFile(join(locked, "file"), "content");
+            await fs.chmod(locked, 0o000);
+            await expect(dir[Symbol.asyncDispose]()).rejects.toHaveExactConstructor(Error);
+          } finally {
+            if (locked) await fs.chmod(locked, 0o700);
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
+      });
+
+      describe("permission-model readdir denial", () => {
+        it("throws Error", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const { execFile } = await import("node:child_process");
+          const { promisify } = await import("node:util");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          try {
+            const { stdout } = await promisify(execFile)(
+              process.execPath,
+              [
+                "--permission",
+                `--allow-fs-write=${root}/*`,
+                "--input-type=module",
+                "-e",
+                `import assert from 'node:assert/strict';
+               import { mkdtempDisposable, writeFile } from 'node:fs/promises';
+               const dir = await mkdtempDisposable(${JSON.stringify(join(root, "child-"))});
+               await writeFile(dir.path + '/file', 'content');
+               const result = dir[Symbol.asyncDispose]();
+               assert.ok(result instanceof Promise);
+               await assert.rejects(result, error => {
+                 assert.equal(error.constructor, Error);
+                 assert.equal(error.permission, 'FileSystemRead');
+                 assert.equal(error.resource, dir.path);
+                 return true;
+               });
+               console.log('rejection verified');`,
+              ],
+              { timeout: 5000 },
+            );
+            expect(stdout.trim()).toBe("rejection verified");
+          } finally {
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
+      });
+
+      describe("permission-model rmdir denial escapes its callback", () => {
+        it("throws Error", { tags: ["node-only"] }, async () => {
+          const fs = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const { execFile } = await import("node:child_process");
+          const { promisify } = await import("node:util");
+          const root = await fs.mkdtemp(join(tmpdir(), "errs-dispose-"));
+          const prefix = join(root, "child-");
+          try {
+            const { stdout } = await promisify(execFile)(
+              process.execPath,
+              [
+                "--permission",
+                "--allow-fs-read=*",
+                `--allow-fs-write=${prefix}XXXXXX`,
+                "--input-type=module",
+                "-e",
+                `import assert from 'node:assert/strict';
+               import { mkdtempDisposable } from 'node:fs/promises';
+               const dir = await mkdtempDisposable(${JSON.stringify(prefix)});
+               let settled = false;
+               process.once('uncaughtException', (error, origin) => {
+                 assert.equal(origin, 'uncaughtException');
+                 assert.equal(error.constructor, Error);
+                 assert.equal(error.permission, 'FileSystemWrite');
+                 assert.equal(error.resource, dir.path);
+                 assert.equal(settled, false);
+                 console.log('callback throw verified');
+               });
+               const result = dir[Symbol.asyncDispose]();
+               assert.ok(result instanceof Promise);
+               result.then(() => { settled = true; }, () => { settled = true; });`,
+              ],
+              { timeout: 5000 },
+            );
+            expect(stdout.trim()).toBe("callback throw verified");
+          } finally {
+            await fs.rm(root, { recursive: true, force: true });
+          }
+        });
       });
     });
 

@@ -3,9 +3,7 @@ import { describe, it } from "vitest";
 
 describe("node:os", () => {
   describe("arch", () => {
-    it("TODO", () => {
-      // TODO
-    });
+    it.skip("never throws");
   });
 
   describe("availableParallelism", () => {

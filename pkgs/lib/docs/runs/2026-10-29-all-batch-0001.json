@@ -1,0 +1,1502 @@
+{
+  "run_id": "2026-10-29-all-batch-0001",
+  "status": "complete-budget",
+  "scope": {
+    "kind": null,
+    "lib": null,
+    "node_version": null
+  },
+  "budget": 32,
+  "max_workers": 10,
+  "baseline": "9f174c28345f47275237cb814abb6eaeac41588f",
+  "ownership": "Coordinator finished; all workers idle and file owners released. Atomic .coordinator-lock released after final checks.",
+  "environment": {
+    "node": "24.19.0",
+    "types_node": "24.19.2",
+    "playwright": "1.64.1",
+    "chromium": "156.0.8078.4",
+    "pnpm": "12.11.2"
+  },
+  "preflight": [
+    "inventory check: 182 files, 0 changed outputs",
+    "real Chromium launch passed",
+    "root and submodule instructions read"
+  ],
+  "last_fully_reviewed_batch_cursor": null,
+  "attempted_count": 32,
+  "completed_count": 22,
+  "active": [],
+  "blocked": [
+    {
+      "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertPredicate\",\"new\"]",
+      "reason": "Declaration-only constructor constituent of AssertPredicate; no unique runtime implementation. TODO preserved; pinned declaration/source proof reviewed."
+    },
+    {
+      "id": "node/24/child_process.test.ts::[\"node:child_process\",\"ChildProcess\",\"[Symbol.dispose]\"]",
+      "reason": "Partial seven verified repros; retained TODO. Native OS kill denial/error-event paths need isolated real policy/credential fixture; never-spawned native handle lifecycle unvalidated. No fake native handle permitted."
+    },
+    {
+      "id": "node/24/fs.test.ts::[\"node:fs\",\"BigIntStatsListener\"]",
+      "reason": "Declaration-only BigIntStatsListener callback; no unique implementation. Source/declaration proof reviewed, TODO unchanged, no fabricated tests."
+    },
+    {
+      "id": "node/24/module.test.ts::[\"node:module\",\"Module\",\"InitializeHook\"]",
+      "reason": "Reviewed declaration-only InitializeHook proof and loader worker transport distinctions. No unique implementation; TODO retained, no fabricated runtime tests."
+    },
+    {
+      "id": "node/24/https.test.ts::[\"node:https\",\"Agent\",\"createConnection\"]",
+      "reason": "Reviewed 11 partial exact-constructor/channel repros; TODO retained. Native TLS setup/context variants, diagnostic inspect graph, supplied sockets, proxy-success and deferred callback propagation not exhaustively proved."
+    },
+    {
+      "id": "node/24/process.test.ts::[\"node:process\",\"global\",\"NodeJS\",\"BeforeExitListener\"]",
+      "reason": "Reviewed pinned declaration/source proof: BeforeExitListener supplied callback, no unique implementation; TODO retained, no fabricated tests."
+    },
+    {
+      "id": "node/24/querystring.test.ts::[\"node:querystring\",\"ParseOptions\",\"decodeURIComponent\"]",
+      "reason": "Reviewed supplied decoder mapping and catch/fallback consumer boundary; no unique implementation, TODO unchanged."
+    },
+    {
+      "id": "node/24/readline.test.ts::[\"node:readline\",\"AsyncCompleter\"]",
+      "reason": "Reviewed callback-only AsyncCompleter declaration and synchronous/error-first consumer distinctions; TODO retained."
+    },
+    {
+      "id": "node/24/readline/promises.test.ts::[\"node:readline/promises\",\"Completer\"]",
+      "reason": "Reviewed callback-only Completer declaration and await/catch boundary; TODO retained. Corrected Throws operand candidate notation."
+    },
+    {
+      "id": "node/24/http.test.ts::[\"node:http\",\"Agent\",\"createConnection\"]",
+      "reason": "Reviewed 31 partial repros and source; TODO retained for HTTPS proxy TLS/native proof, fd/IPC/platform paths and remaining deferred delivery. Coordinator added diagnostic stack-limit restoration for grouped validation."
+    }
+  ],
+  "integrated_annotations": [],
+  "mechanism_review": {
+    "coverage_unit": "distinct failure mechanism and argument/receiver dependency, not error class or sentinel value",
+    "count_policy": "tasks.executed_repros reflects current tests; original review text and earlier checks are historical",
+    "callable_repros_passed": 341,
+    "accepted_callable_repros": 292,
+    "partial_callable_repros": 49,
+    "helper_checks_node_passed": 6,
+    "helper_checks_chromium_passed": 6,
+    "failed": 0,
+    "per_callable_counts_match_tasks": true,
+    "validation_check": "mechanism-refactor-final-node-24",
+    "inventory_check": "182 files, 0 changed outputs",
+    "typescript_check": "support utilities and Vitest configuration passed",
+    "shared_proof": "pkgs/lib/docs/evidence/shared/node24-invalid-argument.md"
+  },
+  "maintenance_review": {
+    "historical": true,
+    "portable_task_paths": 57,
+    "callable_repros_passed": 312,
+    "per_callable_counts_match": true,
+    "helper_checks_node_passed": 5,
+    "helper_checks_chromium_passed": 5,
+    "inventory_check": "182 files, 0 changed outputs"
+  },
+  "annotation_blocker": "Node declarations are external @types/node. Bundled TS generator does not deliver Node transformations; do not edit installed dependencies. Durable Node delivery and compiler fixtures required before claiming annotation integration.",
+  "tasks": [
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"Assert\",\"new\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "Assert",
+          "new"
+        ],
+        "line": 11,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#assert#new.md"
+      },
+      "status": "accepted",
+      "session_id": "ses_e7a081521ffeW0OUwnBQyMUguM",
+      "review": "Reviewed 13 exact-constructor/identity repros and pinned source incl diagnostic errors; preserve both overloads. Node annotation gap remains.",
+      "executed_repros": 13
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertPredicate\",\"new\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "AssertPredicate",
+          "new"
+        ],
+        "line": 22,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#assertpredicate#new.md"
+      },
+      "status": "blocked",
+      "session_id": "ses_e7a01959fffeB5ipq7yqCXZ6iE",
+      "review": "Declaration-only constructor constituent of AssertPredicate; no unique runtime implementation. TODO preserved; pinned declaration/source proof reviewed.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertPredicate\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "AssertPredicate"
+        ],
+        "line": 18,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#assertpredicate.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertionError\",\"new\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "AssertionError",
+          "new"
+        ],
+        "line": 30,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#assertionerror#new.md"
+      },
+      "status": "accepted",
+      "session_id": "ses_e79ff57f7ffezfr7kWsQEBjVwJ",
+      "review": "Reviewed 24 tests, all constructor branches with diagnostic/iteration/stack effects, native namespace ReferenceError and ERR_INTERNAL_ASSERTION, exact constructors and state cleanup. Fixed Throws operand notation.",
+      "executed_repros": 23
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"CallTracker\",\"calls\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "CallTracker",
+          "calls"
+        ],
+        "line": 38,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#calltracker#calls.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"CallTracker\",\"getCalls\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "CallTracker",
+          "getCalls"
+        ],
+        "line": 44,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#calltracker#getcalls.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"CallTracker\",\"report\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "CallTracker",
+          "report"
+        ],
+        "line": 50,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#calltracker#report.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"CallTracker\",\"reset\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "CallTracker",
+          "reset"
+        ],
+        "line": 56,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#calltracker#reset.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"CallTracker\",\"verify\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "CallTracker",
+          "verify"
+        ],
+        "line": 62,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#calltracker#verify.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"deepEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "deepEqual"
+        ],
+        "line": 69,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#deepequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"deepStrictEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "deepStrictEqual"
+        ],
+        "line": 75,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#deepstrictequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"doesNotMatch\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "doesNotMatch"
+        ],
+        "line": 81,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#doesnotmatch.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"doesNotReject\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "doesNotReject"
+        ],
+        "line": 87,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#doesnotreject.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"doesNotThrow\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "doesNotThrow"
+        ],
+        "line": 93,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#doesnotthrow.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"equal\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "equal"
+        ],
+        "line": 99,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#equal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"fail\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "fail"
+        ],
+        "line": 105,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#fail.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"ifError\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "ifError"
+        ],
+        "line": 111,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#iferror.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"match\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "match"
+        ],
+        "line": 117,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#match.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"notDeepEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "notDeepEqual"
+        ],
+        "line": 123,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#notdeepequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"notDeepStrictEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "notDeepStrictEqual"
+        ],
+        "line": 129,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#notdeepstrictequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"notEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "notEqual"
+        ],
+        "line": 135,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#notequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"notStrictEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "notStrictEqual"
+        ],
+        "line": 141,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#notstrictequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"ok\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "ok"
+        ],
+        "line": 147,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#ok.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"partialDeepStrictEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "partialDeepStrictEqual"
+        ],
+        "line": 153,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#partialdeepstrictequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"rejects\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "rejects"
+        ],
+        "line": 159,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#rejects.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"strictEqual\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "strictEqual"
+        ],
+        "line": 165,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#strictequal.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"throws\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert",
+          "throws"
+        ],
+        "line": 171,
+        "evidence_file": "node/24/assert/node%3Aassert#assert#throws.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\"]",
+        "kind": "node",
+        "lib": "assert",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert.test.ts",
+        "describe_path": [
+          "node:assert",
+          "assert"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/assert/node%3Aassert#assert.md"
+      },
+      "status": "deferred",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly."
+    },
+    {
+      "task": {
+        "id": "node/24/assert/strict.test.ts::[\"node:assert/strict\",\"strict\"]",
+        "kind": "node",
+        "lib": "assert/strict",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/assert/strict.test.ts",
+        "describe_path": [
+          "node:assert/strict",
+          "strict"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/assert/strict/node%3Aassert%2Fstrict#strict.md"
+      },
+      "status": "accepted",
+      "session_id": "ses_e7a07fbe7ffeW4iZwHXWQ3f4lb",
+      "review": "Reviewed 15 repros and pinned diagnostic tokenizer/source-map proof; fixture errors captured only during callable; cleanup restores globals. Assertion-predicate annotation unsupported by current delivery.",
+      "executed_repros": 14
+    },
+    {
+      "task": {
+        "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncHook\",\"disable\"]",
+        "kind": "node",
+        "lib": "async_hooks",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/async_hooks.test.ts",
+        "describe_path": [
+          "node:async_hooks",
+          "AsyncHook",
+          "disable"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/async_hooks/node%3Aasync_hooks#asynchook#disable.md"
+      },
+      "status": "accepted",
+      "session_id": "ses_e7a07dcf7ffeJw5AL4De7lXGMO",
+      "review": "Reviewed pinned source, exact constructors, proxy propagation, isolated hook cleanup; five Node repros passed. Annotation delivery deferred.",
+      "executed_repros": 3
+    },
+    {
+      "task": {
+        "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncHook\",\"enable\"]",
+        "kind": "node",
+        "lib": "async_hooks",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/async_hooks.test.ts",
+        "describe_path": [
+          "node:async_hooks",
+          "AsyncHook",
+          "enable"
+        ],
+        "line": 13,
+        "evidence_file": "node/24/async_hooks/node%3Aasync_hooks#asynchook#enable.md"
+      },
+      "status": "accepted",
+      "session_id": "ses_e7a03125dffeZps0sqaui19nfV",
+      "review": "Reviewed six repros, six reads including post-registration flag; pinned source and cleanup in child processes; exact constructors/identity. Candidate unknown, not annotated.",
+      "executed_repros": 4
+    },
+    {
+      "task": {
+        "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncLocalStorage\",\"disable\"]",
+        "kind": "node",
+        "lib": "async_hooks",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/async_hooks.test.ts",
+        "describe_path": [
+          "node:async_hooks",
+          "AsyncLocalStorage",
+          "disable"
+        ],
+        "line": 21,
+        "evidence_file": "node/24/async_hooks/node%3Aasync_hooks#asynclocalstorage#disable.md"
+      },
+      "status": "accepted",
+      "reason": "Replaced unstarted selection to prioritize distinct files; retain TODO and revisit explicitly.",
+      "session_id": "ses_e79feaad8ffe1dSEhz2gMncf5O",
+      "review": "Cross-review correction accepted: seven tests, native namespace enabled TDZ on direct/inherited/proxy receiver produces legacy ReferenceError; both frame flag modes verified with post-init controls and cleanup.",
+      "executed_repros": 5,
+      "review_requested": "Cross-review found missing module namespace enabled TDZ intrinsic ReferenceError in legacy mode; reopen for correction, attempt count unchanged."
+    },
+    {
+      "task": {
+        "id": "node/24/buffer.test.ts::[\"node:buffer\",\"Blob\",\"arrayBuffer\"]",
+        "kind": "node",
+        "lib": "buffer",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/buffer.test.ts",
+        "describe_path": [
+          "node:buffer",
+          "Blob",
+          "arrayBuffer"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/buffer/node%3Abuffer#blob#arraybuffer.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib buffer",
+      "session_id": "ses_e79ff57f3ffeKBQZnLkDHquwRp",
+      "review": "Reviewed eight exact-constructor/identity tests; native file failures mapped to NotReadableError rejection; receiver effects synchronous; resource failures explicitly excluded. Corrected conceptual Throws type notation.",
+      "executed_repros": 6
+    },
+    {
+      "task": {
+        "id": "node/24/child_process.test.ts::[\"node:child_process\",\"ChildProcess\",\"[Symbol.dispose]\"]",
+        "kind": "node",
+        "lib": "child_process",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/child_process.test.ts",
+        "describe_path": [
+          "node:child_process",
+          "ChildProcess",
+          "[Symbol.dispose]"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/child_process/node%3Achild_process#childprocess#%5Bsymbol.dispose%5D.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib child_process",
+      "session_id": "ses_e79ff57d7ffeJJYZqxIUNICMDd",
+      "review": "Partial seven verified repros; retained TODO. Native OS kill denial/error-event paths need isolated real policy/credential fixture; never-spawned native handle lifecycle unvalidated. No fake native handle permitted.",
+      "executed_repros": 7
+    },
+    {
+      "task": {
+        "id": "node/24/cluster.test.ts::[\"node:cluster\",\"Cluster\",\"addListener\"]",
+        "kind": "node",
+        "lib": "cluster",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/cluster.test.ts",
+        "describe_path": [
+          "node:cluster",
+          "Cluster",
+          "addListener"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/cluster/node%3Acluster#cluster#addlistener~422e4295832982d0.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib cluster",
+      "session_id": "ses_e79ff57d6ffemys75vW4t02l50",
+      "review_requested": "Focused correction requested in existing child: verify missing intrinsic namespace ReferenceError and diagnostic inspection errors; do not hide concrete classes behind unknown. Console additionally restore stack limit; dgram additionally emitter RangeError.",
+      "review": "Second correction reviewed; 17 tests cover ReferenceError, implicit function-name depth bypass Error ERR_INTERNAL_ASSERTION and diagnostic recursion RangeError alongside emitter array capacity/capture channels; isolated children and portable tmpdir.",
+      "executed_repros": 17
+    },
+    {
+      "task": {
+        "id": "node/24/console.test.ts::[\"node:console\",\"global\",\"Console\",\"Console\",\"new\"]",
+        "kind": "node",
+        "lib": "console",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/console.test.ts",
+        "describe_path": [
+          "node:console",
+          "global",
+          "Console",
+          "Console",
+          "new"
+        ],
+        "line": 9,
+        "evidence_file": "node/24/console/node%3Aconsole#global#console#console#new.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib console",
+      "session_id": "ses_e79ff01daffeV3527zd9G6lKN3",
+      "review_requested": "Focused correction requested in existing child: verify missing intrinsic namespace ReferenceError and diagnostic inspection errors; do not hide concrete classes behind unknown. Console additionally restore stack limit; dgram additionally emitter RangeError.",
+      "review": "Correction reviewed: 29 repros now cover intrinsic ReferenceError, Error ERR_INTERNAL_ASSERTION, recursive RangeError and all diagnostic branches; descriptor restoration fixed. Portable tmpdir path needs final grouped validation.",
+      "executed_repros": 28
+    },
+    {
+      "task": {
+        "id": "node/24/crypto.test.ts::[\"node:crypto\",\"Certificate\",\"exportChallenge\"]",
+        "kind": "node",
+        "lib": "crypto",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/crypto.test.ts",
+        "describe_path": [
+          "node:crypto",
+          "Certificate",
+          "exportChallenge"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/crypto/node%3Acrypto#certificate#exportchallenge.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib crypto",
+      "session_id": "ses_e79ff01bdffe68LLoB536Jel4N",
+      "review_requested": "Focused correction requested in existing child: verify missing intrinsic namespace ReferenceError and diagnostic inspection errors; do not hide concrete classes behind unknown. Console additionally restore stack limit; dgram additionally emitter RangeError.",
+      "review": "Corrected eleven tests reviewed: native size RangeError, diagnostic cycle, namespace ReferenceError and depth-bypassing ERR_INTERNAL_ASSERTION. tmpdir portability change pending grouped validation.",
+      "executed_repros": 22
+    },
+    {
+      "task": {
+        "id": "node/24/dgram.test.ts::[\"node:dgram\",\"Socket\",\"[Symbol.asyncDispose]\"]",
+        "kind": "node",
+        "lib": "dgram",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/dgram.test.ts",
+        "describe_path": [
+          "node:dgram",
+          "Socket",
+          "[Symbol.asyncDispose]"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/dgram/node%3Adgram#socket#%5Bsymbol.asyncdispose%5D.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib dgram",
+      "session_id": "ses_e79ff019effeXa060jwd0icnpb",
+      "review_requested": "Focused correction requested in existing child: verify missing intrinsic namespace ReferenceError and diagnostic inspection errors; do not hide concrete classes behind unknown. Console additionally restore stack limit; dgram additionally emitter RangeError.",
+      "review": "Corrected fifteen tests reviewed: emitter capacity and diagnostic recursion RangeError, namespace ReferenceError and internal Error; async rejection vs deferred events distinguished. Coordinator added stack-limit descriptor cleanup; final grouped validation required.",
+      "executed_repros": 15
+    },
+    {
+      "task": {
+        "id": "node/24/diagnostics_channel.test.ts::[\"node:diagnostics_channel\",\"Channel\",\"bindStore\"]",
+        "kind": "node",
+        "lib": "diagnostics_channel",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/diagnostics_channel.test.ts",
+        "describe_path": [
+          "node:diagnostics_channel",
+          "Channel",
+          "bindStore"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/diagnostics_channel/node%3Adiagnostics_channel#channel#bindstore.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib diagnostics_channel",
+      "session_id": "ses_e79ff019dffeE98C56XZbQ846K",
+      "review": "Reviewed activation/receiver propagation and real V8 Map capacity RangeError (isolated 2GiB child); 8 repros; transform deferred not invoked. Fixed candidate syntax.",
+      "executed_repros": 8
+    },
+    {
+      "task": {
+        "id": "node/24/dns.test.ts::[\"node:dns\",\"Resolver\",\"cancel\"]",
+        "kind": "node",
+        "lib": "dns",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/dns.test.ts",
+        "describe_path": [
+          "node:dns",
+          "Resolver",
+          "cancel"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/dns/node%3Adns#resolver#cancel.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib dns",
+      "session_id": "ses_e79ff0199ffeHah9a0qa62WBKu",
+      "review": "Reviewed eight tests incl native signature, deterministic local DNS callback ECANCELLED and later identity propagation. Not synchronous cancel Error. Fixed candidate syntax.",
+      "executed_repros": 8
+    },
+    {
+      "task": {
+        "id": "node/24/events.test.ts::[\"node:events\",\"EventEmitter\",\"EventEmitterAsyncResource\",\"emitDestroy\"]",
+        "kind": "node",
+        "lib": "events",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/events.test.ts",
+        "describe_path": [
+          "node:events",
+          "EventEmitter",
+          "EventEmitterAsyncResource",
+          "emitDestroy"
+        ],
+        "line": 8,
+        "evidence_file": "node/24/events/node%3Aevents#eventemitter#eventemitterasyncresource#emitdestroy.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib events",
+      "session_id": "ses_e79fbbda5ffesnAVQon1d58hyy",
+      "review": "Reviewed six isolated tests and source/native queue proof; exact brand TypeError and resource access unknown; repeated calls valid, hook failures deferred fatal not synchronous.",
+      "executed_repros": 6
+    },
+    {
+      "task": {
+        "id": "node/24/fs.test.ts::[\"node:fs\",\"BigIntStatsListener\"]",
+        "kind": "node",
+        "lib": "fs",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/fs.test.ts",
+        "describe_path": [
+          "node:fs",
+          "BigIntStatsListener"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/fs/node%3Afs#bigintstatslistener.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib fs",
+      "session_id": "ses_e79fa73c4ffeNe9jsvFAponht1",
+      "review": "Declaration-only BigIntStatsListener callback; no unique implementation. Source/declaration proof reviewed, TODO unchanged, no fabricated tests.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/fs/promises.test.ts::[\"node:fs/promises\",\"DisposableTempDir\",\"[Symbol.asyncDispose]\"]",
+        "kind": "node",
+        "lib": "fs/promises",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/fs/promises.test.ts",
+        "describe_path": [
+          "node:fs/promises",
+          "DisposableTempDir",
+          "[Symbol.asyncDispose]"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/fs/promises/node%3Afs%2Fpromises#disposabletempdir#%5Bsymbol.asyncdispose%5D.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib fs/promises",
+      "session_id": "ses_e79fa73b1ffeIzclSgVWn4DJun",
+      "review": "Reviewed six native FS tests: NUL encoding TypeError, EACCES/ENOTDIR Error, permission model rejection vs uncaught callback pending promise. Linux uid1000/mode-bit assumptions explicit; no false supplied effects.",
+      "executed_repros": 6
+    },
+    {
+      "task": {
+        "id": "node/24/http.test.ts::[\"node:http\",\"Agent\",\"createConnection\"]",
+        "kind": "node",
+        "lib": "http",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/http.test.ts",
+        "describe_path": [
+          "node:http",
+          "Agent",
+          "createConnection"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/http/node%3Ahttp#agent#createconnection.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib http",
+      "session_id": "ses_e79f9e898ffeZ2eAJCyde2HlZo",
+      "review": "Reviewed 31 partial repros and source; TODO retained for HTTPS proxy TLS/native proof, fd/IPC/platform paths and remaining deferred delivery. Coordinator added diagnostic stack-limit restoration for grouped validation.",
+      "executed_repros": 31
+    },
+    {
+      "task": {
+        "id": "node/24/http2.test.ts::[\"node:http2\",\"ClientHttp2Session\",\"addListener\"]",
+        "kind": "node",
+        "lib": "http2",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/http2.test.ts",
+        "describe_path": [
+          "node:http2",
+          "ClientHttp2Session",
+          "addListener"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/http2/node%3Ahttp2#clienthttp2session#addlistener.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib http2",
+      "session_id": "ses_e79f91cd3ffeafzDVoek7V8Vfs",
+      "review_requested": "Correction requested for diagnostic/warning recursion RangeError and function-name namespace depth bypass ERR_INTERNAL_ASSERTION.",
+      "review": "Reviewed correction: nineteen real-session tests, diagnostic/warning recursion and depth-bypass ERR_INTERNAL_ASSERTION, insertion timing, native hook lifecycle and HTTP2-specific deferred capture handling. Child isolation retained.",
+      "executed_repros": 19
+    },
+    {
+      "task": {
+        "id": "node/24/https.test.ts::[\"node:https\",\"Agent\",\"createConnection\"]",
+        "kind": "node",
+        "lib": "https",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/https.test.ts",
+        "describe_path": [
+          "node:https",
+          "Agent",
+          "createConnection"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/https/node%3Ahttps#agent#createconnection.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib https",
+      "session_id": "ses_e79f8ed84ffeB6VW5tl1m1LxwQ",
+      "review": "Reviewed 11 partial exact-constructor/channel repros; TODO retained. Native TLS setup/context variants, diagnostic inspect graph, supplied sockets, proxy-success and deferred callback propagation not exhaustively proved.",
+      "executed_repros": 11
+    },
+    {
+      "task": {
+        "id": "node/24/module.test.ts::[\"node:module\",\"Module\",\"InitializeHook\"]",
+        "kind": "node",
+        "lib": "module",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/module.test.ts",
+        "describe_path": [
+          "node:module",
+          "Module",
+          "InitializeHook"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/module/node%3Amodule#module#initializehook.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib module",
+      "session_id": "ses_e79f8862dffeDuKuUWCgVed7xD",
+      "review": "Reviewed declaration-only InitializeHook proof and loader worker transport distinctions. No unique implementation; TODO retained, no fabricated runtime tests.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/net.test.ts::[\"node:net\",\"BlockList\",\"addAddress\"]",
+        "kind": "node",
+        "lib": "net",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/net.test.ts",
+        "describe_path": [
+          "node:net",
+          "BlockList",
+          "addAddress"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/net/node%3Anet#blocklist#addaddress.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib net",
+      "session_id": "ses_e79f7a231ffem3BK1bmP0z9lLv",
+      "review": "Reviewed seven tests covering both overloads/native parse branches, namespace ReferenceError, diagnostic recursion RangeError and proxy-key replacement ERR_INTERNAL_ASSERTION, identity propagation; state restored.",
+      "executed_repros": 7
+    },
+    {
+      "task": {
+        "id": "node/24/os.test.ts::[\"node:os\",\"arch\"]",
+        "kind": "node",
+        "lib": "os",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/os.test.ts",
+        "describe_path": [
+          "node:os",
+          "arch"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/os/node%3Aos#arch.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib os",
+      "session_id": "ses_e79f723eaffedw372myexijg6q",
+      "review": "Definitive whole-body captured process.arch own-data-property proof reviewed, exact never marker; zero runtime repros expected (collection only), six standalone controls/source hash matched.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/path.test.ts::[\"node:path\",\"path\",\"PlatformPath\",\"basename\"]",
+        "kind": "node",
+        "lib": "path",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/path.test.ts",
+        "describe_path": [
+          "node:path",
+          "path",
+          "PlatformPath",
+          "basename"
+        ],
+        "line": 8,
+        "evidence_file": "node/24/path/node%3Apath#path#platformpath#basename.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib path",
+      "session_id": "ses_e79f6f27dffebRzXQWLE0HDoka",
+      "review": "Reviewed 22 tests for both POSIX/Win32 built-ins and both validators; full string-only no-error proof, intrinsic diagnostic classes, arbitrary propagation and native namespace fixtures; exact constructors and descriptor cleanup.",
+      "executed_repros": 40
+    },
+    {
+      "task": {
+        "id": "node/24/perf_hooks.test.ts::[\"node:perf_hooks\",\"ELDHistogram\",\"[Symbol.dispose]\"]",
+        "kind": "node",
+        "lib": "perf_hooks",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/perf_hooks.test.ts",
+        "describe_path": [
+          "node:perf_hooks",
+          "ELDHistogram",
+          "[Symbol.dispose]"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/perf_hooks/node%3Aperf_hooks#eldhistogram#%5Bsymbol.dispose%5D.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib perf_hooks",
+      "session_id": "ses_e79f685a1ffeRoVNr3fEKsV4DG",
+      "review": "Cross-review correction accepted: native namespace disable TDZ exact ReferenceError, own realm synchronous call and clean child/fixture teardown. Ten repros; TypeError plus ReferenceError and unknown receiver effects.",
+      "executed_repros": 9,
+      "review_requested": "Cross-review found missing module namespace disable TDZ intrinsic ReferenceError on borrowed receiver; reopen for correction, attempt count unchanged."
+    },
+    {
+      "task": {
+        "id": "node/24/process.test.ts::[\"node:process\",\"global\",\"NodeJS\",\"BeforeExitListener\"]",
+        "kind": "node",
+        "lib": "process",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/process.test.ts",
+        "describe_path": [
+          "node:process",
+          "global",
+          "NodeJS",
+          "BeforeExitListener"
+        ],
+        "line": 8,
+        "evidence_file": "node/24/process/node%3Aprocess#global#nodejs#beforeexitlistener.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib process",
+      "session_id": "ses_e79f5136bffeKgk0Cc3pUJBHIr",
+      "review": "Reviewed pinned declaration/source proof: BeforeExitListener supplied callback, no unique implementation; TODO retained, no fabricated tests.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/querystring.test.ts::[\"node:querystring\",\"ParseOptions\",\"decodeURIComponent\"]",
+        "kind": "node",
+        "lib": "querystring",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/querystring.test.ts",
+        "describe_path": [
+          "node:querystring",
+          "ParseOptions",
+          "decodeURIComponent"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/querystring/node%3Aquerystring#parseoptions#decodeuricomponent.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib querystring",
+      "session_id": "ses_e79f4de4bffeQejB6jDCnh2Av6",
+      "review": "Reviewed supplied decoder mapping and catch/fallback consumer boundary; no unique implementation, TODO unchanged.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/readline.test.ts::[\"node:readline\",\"AsyncCompleter\"]",
+        "kind": "node",
+        "lib": "readline",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/readline.test.ts",
+        "describe_path": [
+          "node:readline",
+          "AsyncCompleter"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/readline/node%3Areadline#asynccompleter.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib readline",
+      "session_id": "ses_e79f42b1affepuDxCbCZic7wAc",
+      "review": "Reviewed callback-only AsyncCompleter declaration and synchronous/error-first consumer distinctions; TODO retained.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/readline/promises.test.ts::[\"node:readline/promises\",\"Completer\"]",
+        "kind": "node",
+        "lib": "readline/promises",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/readline/promises.test.ts",
+        "describe_path": [
+          "node:readline/promises",
+          "Completer"
+        ],
+        "line": 6,
+        "evidence_file": "node/24/readline/promises/node%3Areadline%2Fpromises#completer.md"
+      },
+      "status": "blocked",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib readline/promises",
+      "session_id": "ses_e79f3c6f4ffecljJ4NyTNgyN8K",
+      "review": "Reviewed callback-only Completer declaration and await/catch boundary; TODO retained. Corrected Throws operand candidate notation.",
+      "executed_repros": 0
+    },
+    {
+      "task": {
+        "id": "node/24/string_decoder.test.ts::[\"node:string_decoder\",\"StringDecoder\",\"end\"]",
+        "kind": "node",
+        "lib": "string_decoder",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/string_decoder.test.ts",
+        "describe_path": [
+          "node:string_decoder",
+          "StringDecoder",
+          "end"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/string_decoder/node%3Astring_decoder#stringdecoder#end.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib string_decoder",
+      "session_id": "ses_e79f1cfc2ffexdQCHAfEXo031J",
+      "review": "Reviewed fifteen tests: real native size Error, JS flush-addition RangeError, diagnostic classes/propagation, all encoding branches and detached views. Explicit non-certified return-shape caveat for native concatenation retained; no annotation shipped.",
+      "executed_repros": 27
+    },
+    {
+      "task": {
+        "id": "node/24/url.test.ts::[\"node:url\",\"URL\",\"new\"]",
+        "kind": "node",
+        "lib": "url",
+        "node_version": "24",
+        "test_file": "pkgs/lib/tests/node/24/url.test.ts",
+        "describe_path": [
+          "node:url",
+          "URL",
+          "new"
+        ],
+        "line": 7,
+        "evidence_file": "node/24/url/node%3Aurl#url#new.md"
+      },
+      "status": "accepted",
+      "selection_command": "mise run --quiet //pkgs/lib:next 1 --kind node --node-version 24 --lib url",
+      "session_id": "ses_e79f1a637ffeSkFpYcQsBVjwEu",
+      "review_requested": "Focused correction requested: native ESM namespace toString export TDZ during input/base ToPrimitive may establish intrinsic ReferenceError; verify and repro before acceptance.",
+      "review": "Reviewed corrected twelve tests: native parser/string-limit Error, TypeError and namespace ToPrimitive ReferenceError across eight input/base branches; exact identity propagation and cleanup. Candidate uncertainty retained.",
+      "executed_repros": 12
+    }
+  ],
+  "checks": [
+    {
+      "kind": "mechanism-refactor-final-node-24",
+      "command": "mise run //pkgs/lib:test/node tests/node/24/assert.test.ts tests/node/24/assert/strict.test.ts tests/node/24/async_hooks.test.ts tests/node/24/buffer.test.ts tests/node/24/child_process.test.ts tests/node/24/cluster.test.ts tests/node/24/console.test.ts tests/node/24/crypto.test.ts tests/node/24/dgram.test.ts tests/node/24/diagnostics_channel.test.ts tests/node/24/dns.test.ts tests/node/24/events.test.ts tests/node/24/fs/promises.test.ts tests/node/24/http.test.ts tests/node/24/http2.test.ts tests/node/24/https.test.ts tests/node/24/net.test.ts tests/node/24/path.test.ts tests/node/24/perf_hooks.test.ts tests/node/24/string_decoder.test.ts tests/node/24/url.test.ts tests/node/24/os.test.ts tests/node/24/readline/promises.test.ts tests/support/errors.test.ts --maxWorkers 1 --reporter=json --outputFile=/tmp/opencode/lib-mechanisms-final-results.json",
+      "passed": 347,
+      "failed": 0,
+      "pending": 1006,
+      "callable_repros": 341,
+      "accepted_callable_repros": 292,
+      "partial_callable_repros": 49,
+      "helper_checks": 6,
+      "per_callable_counts_match_tasks": true,
+      "runtime": "Node 24.19.0 / node-24",
+      "timestamp": "2026-10-29T06:52:19.683Z",
+      "success": true
+    },
+    {
+      "kind": "mechanism-refactor-node-24",
+      "historical": true,
+      "command": "mise run //pkgs/lib:test/node tests/node/24/assert.test.ts tests/node/24/assert/strict.test.ts tests/node/24/async_hooks.test.ts tests/node/24/buffer.test.ts tests/node/24/child_process.test.ts tests/node/24/cluster.test.ts tests/node/24/console.test.ts tests/node/24/crypto.test.ts tests/node/24/dgram.test.ts tests/node/24/diagnostics_channel.test.ts tests/node/24/dns.test.ts tests/node/24/events.test.ts tests/node/24/fs/promises.test.ts tests/node/24/http.test.ts tests/node/24/http2.test.ts tests/node/24/https.test.ts tests/node/24/net.test.ts tests/node/24/path.test.ts tests/node/24/perf_hooks.test.ts tests/node/24/string_decoder.test.ts tests/node/24/url.test.ts tests/node/24/os.test.ts tests/node/24/readline/promises.test.ts tests/support/errors.test.ts --maxWorkers 1",
+      "passed": 351,
+      "failed": 0,
+      "pending": 1006,
+      "callable_repros": 345,
+      "helper_checks": 6,
+      "per_callable_counts_match_tasks": true,
+      "success": true
+    },
+    {
+      "kind": "combined-node-24",
+      "historical": true,
+      "command": "mise run //pkgs/lib:test/node tests/node/24/assert.test.ts tests/node/24/assert/strict.test.ts tests/node/24/async_hooks.test.ts tests/node/24/buffer.test.ts tests/node/24/child_process.test.ts tests/node/24/cluster.test.ts tests/node/24/console.test.ts tests/node/24/crypto.test.ts tests/node/24/dgram.test.ts tests/node/24/diagnostics_channel.test.ts tests/node/24/dns.test.ts tests/node/24/events.test.ts tests/node/24/fs/promises.test.ts tests/node/24/http.test.ts tests/node/24/http2.test.ts tests/node/24/https.test.ts tests/node/24/net.test.ts tests/node/24/os.test.ts tests/node/24/path.test.ts tests/node/24/perf_hooks.test.ts tests/node/24/readline/promises.test.ts tests/node/24/string_decoder.test.ts tests/node/24/url.test.ts --maxWorkers 1 --reporter=default --reporter=json --outputFile.json=/tmp/opencode/lib-audit-final-results.json",
+      "expected_executed": 312,
+      "passed": 312,
+      "failed": 0,
+      "pending": 1006,
+      "exit_code": 0,
+      "success": true,
+      "files": [
+        "tests/node/24/assert.test.ts",
+        "tests/node/24/assert/strict.test.ts",
+        "tests/node/24/async_hooks.test.ts",
+        "tests/node/24/buffer.test.ts",
+        "tests/node/24/child_process.test.ts",
+        "tests/node/24/cluster.test.ts",
+        "tests/node/24/console.test.ts",
+        "tests/node/24/crypto.test.ts",
+        "tests/node/24/dgram.test.ts",
+        "tests/node/24/diagnostics_channel.test.ts",
+        "tests/node/24/dns.test.ts",
+        "tests/node/24/events.test.ts",
+        "tests/node/24/fs/promises.test.ts",
+        "tests/node/24/http.test.ts",
+        "tests/node/24/http2.test.ts",
+        "tests/node/24/https.test.ts",
+        "tests/node/24/net.test.ts",
+        "tests/node/24/os.test.ts",
+        "tests/node/24/path.test.ts",
+        "tests/node/24/perf_hooks.test.ts",
+        "tests/node/24/readline/promises.test.ts",
+        "tests/node/24/string_decoder.test.ts",
+        "tests/node/24/url.test.ts"
+      ],
+      "runtime": "Node 24.19.0 / node-24",
+      "timestamp": "2026-10-29T05:16:20.036Z"
+    },
+    {
+      "kind": "per-callable-execution-counts",
+      "historical": true,
+      "success": true,
+      "results": [
+        {
+          "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"Assert\",\"new\"]",
+          "expected": 13,
+          "passed": 13
+        },
+        {
+          "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertPredicate\",\"new\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/assert.test.ts::[\"node:assert\",\"assert\",\"AssertionError\",\"new\"]",
+          "expected": 24,
+          "passed": 24
+        },
+        {
+          "id": "node/24/assert/strict.test.ts::[\"node:assert/strict\",\"strict\"]",
+          "expected": 15,
+          "passed": 15
+        },
+        {
+          "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncHook\",\"disable\"]",
+          "expected": 5,
+          "passed": 5
+        },
+        {
+          "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncHook\",\"enable\"]",
+          "expected": 6,
+          "passed": 6
+        },
+        {
+          "id": "node/24/async_hooks.test.ts::[\"node:async_hooks\",\"AsyncLocalStorage\",\"disable\"]",
+          "expected": 7,
+          "passed": 7
+        },
+        {
+          "id": "node/24/buffer.test.ts::[\"node:buffer\",\"Blob\",\"arrayBuffer\"]",
+          "expected": 8,
+          "passed": 8
+        },
+        {
+          "id": "node/24/child_process.test.ts::[\"node:child_process\",\"ChildProcess\",\"[Symbol.dispose]\"]",
+          "expected": 7,
+          "passed": 7
+        },
+        {
+          "id": "node/24/cluster.test.ts::[\"node:cluster\",\"Cluster\",\"addListener\"]",
+          "expected": 17,
+          "passed": 17
+        },
+        {
+          "id": "node/24/console.test.ts::[\"node:console\",\"global\",\"Console\",\"Console\",\"new\"]",
+          "expected": 29,
+          "passed": 29
+        },
+        {
+          "id": "node/24/crypto.test.ts::[\"node:crypto\",\"Certificate\",\"exportChallenge\"]",
+          "expected": 11,
+          "passed": 11
+        },
+        {
+          "id": "node/24/dgram.test.ts::[\"node:dgram\",\"Socket\",\"[Symbol.asyncDispose]\"]",
+          "expected": 15,
+          "passed": 15
+        },
+        {
+          "id": "node/24/diagnostics_channel.test.ts::[\"node:diagnostics_channel\",\"Channel\",\"bindStore\"]",
+          "expected": 8,
+          "passed": 8
+        },
+        {
+          "id": "node/24/dns.test.ts::[\"node:dns\",\"Resolver\",\"cancel\"]",
+          "expected": 8,
+          "passed": 8
+        },
+        {
+          "id": "node/24/events.test.ts::[\"node:events\",\"EventEmitter\",\"EventEmitterAsyncResource\",\"emitDestroy\"]",
+          "expected": 6,
+          "passed": 6
+        },
+        {
+          "id": "node/24/fs.test.ts::[\"node:fs\",\"BigIntStatsListener\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/fs/promises.test.ts::[\"node:fs/promises\",\"DisposableTempDir\",\"[Symbol.asyncDispose]\"]",
+          "expected": 6,
+          "passed": 6
+        },
+        {
+          "id": "node/24/http.test.ts::[\"node:http\",\"Agent\",\"createConnection\"]",
+          "expected": 31,
+          "passed": 31
+        },
+        {
+          "id": "node/24/http2.test.ts::[\"node:http2\",\"ClientHttp2Session\",\"addListener\"]",
+          "expected": 19,
+          "passed": 19
+        },
+        {
+          "id": "node/24/https.test.ts::[\"node:https\",\"Agent\",\"createConnection\"]",
+          "expected": 11,
+          "passed": 11
+        },
+        {
+          "id": "node/24/module.test.ts::[\"node:module\",\"Module\",\"InitializeHook\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/net.test.ts::[\"node:net\",\"BlockList\",\"addAddress\"]",
+          "expected": 7,
+          "passed": 7
+        },
+        {
+          "id": "node/24/os.test.ts::[\"node:os\",\"arch\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/path.test.ts::[\"node:path\",\"path\",\"PlatformPath\",\"basename\"]",
+          "expected": 22,
+          "passed": 22
+        },
+        {
+          "id": "node/24/perf_hooks.test.ts::[\"node:perf_hooks\",\"ELDHistogram\",\"[Symbol.dispose]\"]",
+          "expected": 10,
+          "passed": 10
+        },
+        {
+          "id": "node/24/process.test.ts::[\"node:process\",\"global\",\"NodeJS\",\"BeforeExitListener\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/querystring.test.ts::[\"node:querystring\",\"ParseOptions\",\"decodeURIComponent\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/readline.test.ts::[\"node:readline\",\"AsyncCompleter\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/readline/promises.test.ts::[\"node:readline/promises\",\"Completer\"]",
+          "expected": 0,
+          "passed": 0
+        },
+        {
+          "id": "node/24/string_decoder.test.ts::[\"node:string_decoder\",\"StringDecoder\",\"end\"]",
+          "expected": 15,
+          "passed": 15
+        },
+        {
+          "id": "node/24/url.test.ts::[\"node:url\",\"URL\",\"new\"]",
+          "expected": 12,
+          "passed": 12
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "command": "mise run //pkgs/lib:check",
+      "success": true,
+      "test_files": 182,
+      "changed_outputs": 0
+    },
+    {
+      "kind": "whitespace",
+      "command": "git diff --check",
+      "success": true
+    },
+    {
+      "kind": "compiler-and-rust",
+      "historical": true,
+      "status": "not-run",
+      "reason": "No generator/parser/compiler changes or declaration transformations; Node delivery remains deferred. Compiler reference checkout absent."
+    }
+  ],
+  "updated_at": "2026-10-29T06:54:32.718Z",
+  "selection_policy": "User expanded concurrency to 10; total attempted budget remains 32. Unstarted original entries deferred; scoped next pages select distinct files. Global reviewed cursor remains null until original holes are reviewed.",
+  "selected_scope": {
+    "kind": "node",
+    "node_version": "24",
+    "lib": null
+  },
+  "final_summary": {
+    "attempted": 32,
+    "accepted": 22,
+    "blocked": 10,
+    "deferred": 25,
+    "executed_repros": 341,
+    "accepted_repros": 292,
+    "blocked_partial_repros": 49,
+    "integrated_annotations": 0,
+    "scope_exhausted": false,
+    "uncommitted": true
+  },
+  "resume_prompt": "Start a new 8-attempt Node 24 callable audit, with at most 10 workers. Reconcile pkgs/lib/docs/runs/2026-10-29-all-batch-0001.json and the uncommitted evidence/tests first. Prioritize its 25 deferred entries and explicitly revisit the 10 recorded blockers. Fetch bounded next pages; preserve exclusive file ownership. The global reviewed cursor is null: do not use --after to skip deferred work. Keep Node annotation delivery deferred until durable external declaration transformation and compiler checks exist."
+}

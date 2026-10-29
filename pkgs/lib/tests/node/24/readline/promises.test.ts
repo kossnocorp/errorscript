@@ -4,7 +4,8 @@ import { describe, it } from "vitest";
 describe("node:readline/promises", () => {
   describe("Completer", () => {
     it("TODO", () => {
-      // TODO
+      // Blocked: declaration-only supplied callback; no unique Node implementation.
+      // See docs/evidence/node/24/readline/promises/node%3Areadline%2Fpromises#completer.md.
     });
   });
 
