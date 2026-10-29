@@ -1,6 +1,6 @@
 //#region Setup
 
-async function neverThrows() {
+async function neverThrowsAsync() {
   return 1;
 }
 
@@ -13,7 +13,7 @@ async function throwAsync() {
 //#region Basic
 
 function main() {
-  neverThrows();
+  neverThrowsAsync();
 
   throwAsync();
 

@@ -60,7 +60,7 @@ try {
 } catch {
   try {
     throwSync();
-  } catch {}
+  } catch { }
 }
 
 //#endregion
@@ -73,21 +73,11 @@ throwAsync().catch((error) => {
   console.error(error);
 });
 
-//#endregion
-
-//#region Promise Unhandled
-
-throwAsync().catch(() => {
-  throwAsync();
-});
-
 throwAsync().catch(() => {
   throwSync();
 });
 
 //#endregion
-
-//#region
 
 //#region Promise rethrow
 
@@ -95,7 +85,7 @@ throwAsync().catch(() => throwAsync());
 
 throwAsync()
   .catch(() => throwAsync())
-  .catch(() => {});
+  .catch(() => { });
 
 //#endregion
 
@@ -117,7 +107,7 @@ function withCallback(cb: () => void) {
   cb();
 }
 
-withCallback(() => {});
+withCallback(() => { });
 
 withCallback(() => {
   throwSync();
