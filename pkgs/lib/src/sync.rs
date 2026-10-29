@@ -291,11 +291,12 @@ fn separate_suites(
     }
 }
 
-struct Existing {
+pub(crate) struct Existing {
     span: Span,
     open: usize,
     close: usize,
-    children: BTreeMap<String, Existing>,
+    pub pending: Option<u32>,
+    pub children: BTreeMap<String, Existing>,
 }
 
 struct Edit {
@@ -304,8 +305,9 @@ struct Edit {
     text: String,
 }
 
-struct Bindings {
+pub(crate) struct Bindings {
     names: BTreeSet<String>,
+    tests: BTreeSet<String>,
     namespaces: BTreeSet<String>,
     describe: String,
     it: String,
@@ -313,9 +315,10 @@ struct Bindings {
 }
 
 impl Bindings {
-    fn from_program(program: &Program<'_>, source: &str) -> Self {
+    pub(crate) fn from_program(program: &Program<'_>, source: &str) -> Self {
         let mut bindings = Self {
             names: BTreeSet::from(["describe".into(), "suite".into()]),
+            tests: BTreeSet::from(["it".into(), "test".into()]),
             namespaces: BTreeSet::new(),
             describe: String::new(),
             it: String::new(),
@@ -340,7 +343,10 @@ impl Bindings {
                                 bindings.names.insert(local.clone());
                                 bindings.describe = local;
                             }
-                            "it" | "test" => bindings.it = local,
+                            "it" | "test" => {
+                                bindings.tests.insert(local.clone());
+                                bindings.it = local;
+                            }
                             _ => {}
                         }
                     }
@@ -371,24 +377,37 @@ impl Bindings {
     }
 
     fn is_describe(&self, expression: &Expression<'_>) -> bool {
+        self.is_binding(expression, &self.names, &["describe", "suite"])
+    }
+
+    fn is_test(&self, expression: &Expression<'_>) -> bool {
+        self.is_binding(expression, &self.tests, &["it", "test"])
+    }
+
+    fn is_binding(
+        &self,
+        expression: &Expression<'_>,
+        names: &BTreeSet<String>,
+        exports: &[&str],
+    ) -> bool {
         match expression {
-            Expression::Identifier(id) => self.names.contains(id.name.as_str()),
+            Expression::Identifier(id) => names.contains(id.name.as_str()),
             Expression::StaticMemberExpression(member) => {
                 if let Expression::Identifier(id) = &member.object
                     && self.namespaces.contains(id.name.as_str())
                 {
-                    return matches!(member.property.name.as_str(), "describe" | "suite");
+                    return exports.contains(&member.property.name.as_str());
                 }
-                self.is_describe(&member.object)
+                self.is_binding(&member.object, names, exports)
             }
-            Expression::CallExpression(call) => self.is_describe(&call.callee),
-            Expression::TaggedTemplateExpression(tag) => self.is_describe(&tag.tag),
+            Expression::CallExpression(call) => self.is_binding(&call.callee, names, exports),
+            Expression::TaggedTemplateExpression(tag) => self.is_binding(&tag.tag, names, exports),
             _ => false,
         }
     }
 }
 
-fn suites(
+pub(crate) fn suites(
     statements: &[Statement<'_>],
     previous: &Suite,
     desired: &Suite,
@@ -419,7 +438,13 @@ fn suites(
         {
             continue;
         }
-        let body = match call.arguments.get(1) {
+        // Vitest accepts describe(name, options, callback) as well as (name, callback).
+        let callback = if matches!(call.arguments.get(1), Some(Argument::ObjectExpression(_))) {
+            call.arguments.get(2)
+        } else {
+            call.arguments.get(1)
+        };
+        let body = match callback {
             Some(Argument::ArrowFunctionExpression(function)) => match &function.body {
                 ArrowFunctionBody::FunctionBody(body) => Some(&**body),
                 _ => None,
@@ -437,6 +462,17 @@ fn suites(
             span: statement.span,
             open: body.span.start as usize,
             close: body.span.end as usize - 1,
+            pending: body.statements.iter().find_map(|statement| {
+                let Statement::ExpressionStatement(statement) = statement else {
+                    return None;
+                };
+                let Expression::CallExpression(call) = &statement.expression else {
+                    return None;
+                };
+                (bindings.is_test(&call.callee)
+                    && matches!(call.arguments.first(), Some(Argument::StringLiteral(name)) if name.value == "TODO"))
+                .then_some(call.span.start)
+            }),
             children: suites(
                 &body.statements,
                 previous

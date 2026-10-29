@@ -38,10 +38,10 @@ pub struct Report {
 }
 
 #[derive(Default, Serialize, Deserialize)]
-struct Manifest {
-    version: u32,
+pub(crate) struct Manifest {
+    pub version: u32,
     source: String,
-    files: BTreeMap<String, Suite>,
+    pub files: BTreeMap<String, Suite>,
 }
 
 /// Plan and parse both inventories and all existing tests before writing any changes.
@@ -238,7 +238,7 @@ fn plan(
     Ok(())
 }
 
-fn library_name(stem: &str) -> String {
+pub(crate) fn library_name(stem: &str) -> String {
     stem.split('.')
         .map(|part| match part {
             "dom" => "DOM".into(),

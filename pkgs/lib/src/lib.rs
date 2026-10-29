@@ -2,10 +2,12 @@
 
 mod declarations;
 mod inventory;
+mod pending;
 mod sync;
 
 pub use declarations::parse_declarations;
 pub use inventory::{Options, Report, generate};
+pub use pending::{PendingCallable, PendingOptions, next_pending};
 pub use sync::synchronize;
 
 use serde::{Deserialize, Serialize};

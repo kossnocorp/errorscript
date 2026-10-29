@@ -2,13 +2,10 @@
   "name": "@errorscript/lib",
   "private": true,
   "type": "module",
-  "scripts": {
-    "generate": "cargo run --package errorscript_lib -- --ts-libs ../../subs/errs/crates/tsrs_vfs/libs",
-    "check": "cargo run --package errorscript_lib -- --ts-libs ../../subs/errs/crates/tsrs_vfs/libs --check",
-    "test": "vitest run"
-  },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@vitest/browser-playwright": "5.0.5",
+    "playwright": "1.64.1",
     "vitest": "5.0.5"
   }
 }

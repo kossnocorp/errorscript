@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Also allow a coordinator invoked as a subagent to launch callable workers.
+  "experimental": { "subagent_depth": 2 },
+  "commands": {
+    "lib-audit": {
+      "description": "Research a bounded batch of pending library callables",
+      "agent": "lib-coordinator",
+      "template": "Coordinate library callable audits using the lib-callable subagent. Request: $ARGUMENTS. If no scope/budget is supplied, process at most 8 callables with at most 4 workers. Follow pkgs/lib/docs/auditing.md.",
+    },
+  },
+}

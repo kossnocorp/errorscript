@@ -1,6 +1,8 @@
 use std::{fs, path::Path};
 
-use errorscript_lib::{Options, Suite, generate, parse_declarations, synchronize};
+use errorscript_lib::{
+    Options, PendingOptions, Suite, generate, next_pending, parse_declarations, synchronize,
+};
 
 fn api(source: &str) -> Suite {
     parse_declarations(source, false).unwrap()
@@ -184,6 +186,7 @@ fn vitest_aliases_namespaces_and_parameterized_suites_keep_existing_tests() {
     for source in [
         "import { describe as group, test as check } from 'vitest';\ngroup.each([1, 2])('Example', () => { group('keep', () => { check('custom', () => {}); }); });\n",
         "import * as v from 'vitest';\nv.describe.skipIf(false)('Example', () => { v.describe('keep', () => { v.it('custom', () => {}); }); });\n",
+        "import { describe, it } from 'vitest';\ndescribe('Example', { tags: ['browser-only'] }, () => { describe('keep', () => { it('custom', () => {}); }); });\n",
     ] {
         let result = synchronize(Some(source), &old, &new).unwrap();
         assert!(result.contains("'custom'"));
@@ -403,4 +406,231 @@ fn invalid_inputs_leave_every_output_untouched_and_versions_are_checked() {
             .to_string()
             .contains("Expected @types/node 22.x")
     );
+}
+
+#[test]
+fn pending_queue_parses_owned_tests_instead_of_comments_strings_or_custom_suites() {
+    let (_directory, options) = setup();
+    write(
+        &options.ts_libs.join("lib.es2015.reflect.d.ts"),
+        "declare namespace Reflect { function apply(): void; function construct(): void; function get(): void; }",
+    );
+    generate(&options).unwrap();
+    let file = options.output.join("ts/es2015.reflect.test.ts");
+    let source = r#"import { describe as group, test as check } from "vitest";
+import * as v from "vitest";
+// it("TODO", () => {}); 🦀
+group("ES2015.Reflect", { tags: ["browser-only"] }, () => {
+  group("Reflect", () => {
+    group("apply", () => {
+      check.skipIf(false)("TODO", { timeout: 100 }, () => {});
+      v.it.todo("TODO");
+    });
+
+    group("construct", () => {
+      const text = 'it("TODO", () => {})';
+      check("throws TypeError", () => {
+        const fixture = () => { it("TODO", () => {}); };
+      });
+      group("custom", () => { check("TODO", () => {}); });
+    });
+
+    v.describe.skip("get", () => {
+      v.test.each([1, 2])("TODO", () => {});
+    });
+  });
+});
+group("unmanaged", () => { check("TODO", () => {}); });
+"#
+    .replace('\n', "\r\n");
+    write(&file, &source);
+    let filter = PendingOptions {
+        limit: 20,
+        kind: Some("ts".into()),
+        lib: Some("es2015.reflect".into()),
+        ..PendingOptions::default()
+    };
+    let tasks = next_pending(&options, &filter).unwrap();
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(
+        tasks[0].describe_path,
+        ["ES2015.Reflect", "Reflect", "apply"]
+    );
+    assert_eq!(tasks[0].line, 7);
+    assert_eq!(tasks[0].evidence_file, "ts/es2015.reflect/reflect#apply.md");
+    assert_eq!(tasks[1].describe_path.last().unwrap(), "get");
+    assert_eq!(tasks[0].node_version, None);
+    assert_eq!(fs::read_to_string(file).unwrap(), source);
+    assert!(
+        generate(&Options {
+            check: true,
+            ..options
+        })
+        .unwrap()
+        .changed
+        .is_empty()
+    );
+}
+
+#[test]
+fn pending_cursor_survives_completion_and_partial_repros_stay_pending() {
+    let (_directory, options) = setup();
+    generate(&options).unwrap();
+    let mut filter = PendingOptions {
+        limit: 20,
+        ..PendingOptions::default()
+    };
+    let all = next_pending(&options, &filter).unwrap();
+    assert_eq!(all.len(), 3); // reference-only esnext is not a callable
+    assert!(all.windows(2).all(|pair| pair[0].id < pair[1].id));
+    assert_eq!(all[0].node_version.as_deref(), Some("24"));
+    assert!(all[1].evidence_file.starts_with("node/24/fs/promises/"));
+    assert!(
+        all[1]
+            .evidence_file
+            .contains("node%3Afs%2Fpromises#open.md")
+    );
+    filter.limit = 1;
+    assert_eq!(next_pending(&options, &filter).unwrap()[0].id, all[0].id);
+
+    let first = &all[0].test_file;
+    let source = fs::read_to_string(first).unwrap();
+    write(
+        Path::new(first),
+        &source.replace("it(\"TODO\"", "it.skip(\"never throws\""),
+    );
+    filter.after = Some(all[0].id.clone());
+    assert_eq!(next_pending(&options, &filter).unwrap()[0].id, all[1].id);
+    filter.after = Some(all[2].id.clone());
+    assert!(next_pending(&options, &filter).unwrap().is_empty());
+
+    write(
+        Path::new(first),
+        &source.replace(
+            "// TODO",
+            "// partial repro\n      it('throws Error', () => {});",
+        ),
+    );
+    filter.after = None;
+    assert_eq!(next_pending(&options, &filter).unwrap()[0].id, all[0].id);
+    filter.kind = Some("ts".into());
+    assert_eq!(next_pending(&options, &filter).unwrap()[0].id, all[2].id);
+    filter.lib = Some("absent".into());
+    assert!(next_pending(&options, &filter).unwrap().is_empty());
+}
+
+#[test]
+fn pending_evidence_names_distinguish_case_collisions_and_unsafe_characters() {
+    let (_directory, mut options) = setup();
+    write(
+        &options.node_types.join("shapes.d.ts"),
+        r#"declare module 'node:shapes' {
+            interface Console { log(): void; }
+            interface console { log(): void; }
+            interface Special { "../#%": () => void; [Symbol.iterator](): void; }
+        }"#,
+    );
+    generate(&options).unwrap();
+    let filter = PendingOptions {
+        limit: 20,
+        kind: Some("node".into()),
+        lib: Some("shapes".into()),
+        ..PendingOptions::default()
+    };
+    let tasks = next_pending(&options, &filter).unwrap();
+    assert_eq!(tasks.len(), 4);
+    let mut paths: Vec<_> = tasks
+        .iter()
+        .map(|task| task.evidence_file.clone())
+        .collect();
+    paths.sort();
+    paths.dedup();
+    assert_eq!(paths.len(), 4);
+    assert!(paths.iter().any(|path| path.contains("..%2F%23%25")));
+    assert!(
+        paths
+            .iter()
+            .any(|path| path.contains("%5Bsymbol.iterator%5D"))
+    );
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|path| path.contains("console#log~"))
+            .count(),
+        2
+    );
+
+    let completed = fs::read_to_string(&tasks[0].test_file).unwrap().replacen(
+        "it(\"TODO\"",
+        "it.skip(\"never throws\"",
+        1,
+    );
+    write(Path::new(&tasks[0].test_file), &completed);
+    let remaining = next_pending(&options, &filter).unwrap();
+    assert_eq!(remaining[0].evidence_file, tasks[1].evidence_file);
+
+    options.node_version = "26".into();
+    write(
+        &options.node_types.join("package.json"),
+        r#"{"name":"@types/node","version":"26.0.0"}"#,
+    );
+    generate(&options).unwrap();
+    let node26 = next_pending(&options, &filter).unwrap();
+    assert!(
+        node26
+            .iter()
+            .all(|task| task.evidence_file.starts_with("node/26/")
+                && task.node_version.as_deref() == Some("26"))
+    );
+}
+
+#[test]
+fn pending_cli_is_json_only_read_only_and_rejects_invalid_requests() {
+    let (_directory, options) = setup();
+    generate(&options).unwrap();
+    // Listing must be independent of declaration inputs and dependency installation.
+    fs::remove_dir_all(&options.ts_libs).unwrap();
+    fs::remove_dir_all(&options.node_types).unwrap();
+    let run = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_errs-lib"))
+            .arg("--out")
+            .arg(&options.output)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let output = run(&["--next", "2"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 2);
+    assert!(output.stderr.is_empty());
+    for args in [
+        vec!["--next", "0"],
+        vec!["--next", "-1"],
+        vec!["--next", "lots"],
+        vec!["--next"],
+        vec!["--next", "1", "--check"],
+        vec!["--next", "1", "--ts-libs", "unused"],
+        vec!["--next", "1", "--kind", "invalid"],
+        vec!["--next", "1", "--node-version", "../24"],
+        vec!["--lib", "dom"],
+    ] {
+        let output = run(&args);
+        assert!(!output.status.success(), "accepted {args:?}");
+        assert!(output.stdout.is_empty(), "non-JSON stdout for {args:?}");
+    }
+    let file = options.output.join("ts/dom.test.ts");
+    for source in ["describe(", "describe('DOM', () => {});"] {
+        write(&file, source);
+        let output = run(&["--next", "20", "--kind", "ts"]);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_to_string(&file).unwrap(), source);
+    }
+    fs::remove_file(options.output.join("ts/.manifest.json")).unwrap();
+    assert!(!run(&["--next", "1", "--kind", "ts"]).status.success());
 }

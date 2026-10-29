@@ -6,6 +6,14 @@ dir = "../.."
 run = "cargo run --package errorscript_lib -- --ts-libs subs/errs/crates/tsrs_vfs/libs --check"
 dir = "../.."
 
+[tasks.next]
+description = "List the next N pending callables as JSON (accepts errs-lib filters)"
+run = "cargo run --quiet --package errorscript_lib -- --next"
+dir = "../.."
+
+[tasks."browser/install"]
+run = "pnpm exec playwright install chromium"
+
 [tasks.test]
 depends = ["test/rust", "test/ts"]
 
@@ -15,5 +23,14 @@ run = "cargo test --package errorscript_lib --locked"
 [tasks."test/ts"]
 run = "pnpm exec vitest run"
 
+[tasks."test/node"]
+run = "pnpm exec vitest run --project 'node-*'"
+
+[tasks."test/browser"]
+run = "pnpm exec vitest run --project chromium"
+
 [tasks."test/ts:watch"]
 run = "pnpm exec vitest"
+
+[tasks."lint/rust"]
+run = "cargo clippy --package errorscript_lib --all-targets --locked -- -D warnings"
